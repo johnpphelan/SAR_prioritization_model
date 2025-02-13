@@ -26,6 +26,7 @@ library(tidyterra)
 # 1 - LOAD DATA -----------------------------
 # Get / set file paths
 source("scripts/utils/load_data.R")
+source("scripts/utils/prep_predictor_data_f.R")
 
 # SAR stuff
 if(!file.exists("data/dfo_sar_w_wb_no_dups.rds")){
@@ -151,6 +152,12 @@ dfo_sar_w_ais = dfo_sar_w_ais |>
 
 hab_suit<-list()
 
+
+
+#######################################################
+
+dfo_sar_w_ais$sum_of_maxent_hab_not_hab = 0
+dfo_sar_w_ais$mean_of_maxent_hab_not_hab = 0
 # 4. Get maxent for the AIS upstream
 for(i in 1:nrow(dfo_sar_w_ais)){
   # species upstream
@@ -158,10 +165,11 @@ for(i in 1:nrow(dfo_sar_w_ais)){
   # species in the waterbody
   sp_in_wb = dfo_sar_w_ais[i,]$ais_present_names
   # separate the species
-  species_split<-strsplit(the_species, ", ")
-  species_wb_split<-strsplit(sp_in_wb, ", ")
+  species_split<-strsplit(the_species, ", ")[[1]]
+  species_wb_split<-strsplit(sp_in_wb, ", ")[[1]]
   # if they are in the waterbody, don't bother with calculating maxent upstream
-  species_split[[1]] <- setdiff(species_split[[1]], species_wb_split[[1]])
+  species_split <- setdiff(species_split, species_wb_split)
+  
   if(the_species == ""){
     next
   }
@@ -189,12 +197,13 @@ for(i in 1:nrow(dfo_sar_w_ais)){
     #print(paste0(ais_spp, " ", i))
     the_species_snake = snakecase::to_snake_case(ais_spp)
     species_folder = paste0(onedrive_wd,"MaxEnt_predictions/",the_species_snake,"/")
-    
-    
-    for(spp in species_folder){
+  
     #we want the habitat/not for this work
-    if(file.exists(paste0(spp,"MaxEnt_prediction_habitat_or_not.tif"))){
-      the_pred_r = terra::rast(paste0(spp,"MaxEnt_prediction_habitat_or_not.tif"))
+    if(!file.exists(paste0(species_folder,"MaxEnt_prediction_habitat_or_not.tif"))){
+      percentage = 0
+      warning("MaxEnt not found!")
+    }else{
+      the_pred_r = terra::rast(paste0(species_folder,"MaxEnt_prediction_habitat_or_not.tif"))
   
         
         
@@ -221,26 +230,26 @@ for(i in 1:nrow(dfo_sar_w_ais)){
         #   labs(title = "Prediction around Waterbody") +
         #   theme_bw()
          
-    }else {
-      warning(paste0("MaxEnt prediction raster does not exist for ",the_species,"; you should probably pause this and make sure to generate that MaxEnt raster first!"))
-    percentage = 0
-      }
+    }
       # how to gather all the percentages?
       # Keep them separate for each species, then sum them up for final presentation
-      dfo_sar_w_ais$mean_of_maxent_hab_not_hab[i] = dfo_sar_w_ais$sum_of_maxent_hab_not_hab[i] + percentage
+    
+      dfo_sar_w_ais$sum_of_maxent_hab_not_hab[i] = dfo_sar_w_ais$sum_of_maxent_hab_not_hab[i] + percentage
       #now we want to store the percentage for each species in habitat_suitablities
       # save the names of the waterbodies, the species and the percentage
-      hab_suit[[length(hab_suit)+1]]<-list(wb_name = dfo_sar_w_ais$waterbody[i], watershed = dfo_sar_w_ais$watershed, species = the_species_snake, percentage = percentage)
-    
-    }
-    dfo_sar_w_ais$mean_of_maxent_hab_not_hab[i] = dfo_sar_w_ais$mean_of_maxent_hab_not_hab[i] / length(species_split)
+      hab_suit[[length(hab_suit)+1]]<-list(wb_name = dfo_sar_w_ais$waterbody[i], watershed = dfo_sar_w_ais$watershed[i], species = the_species_snake, percentage = percentage)
+  
+  }
+  dfo_sar_w_ais$mean_of_maxent_hab_not_hab[i] = dfo_sar_w_ais$sum_of_maxent_hab_not_hab[i] / length(species_split)
+  if(is.nan(dfo_sar_w_ais$mean_of_maxent_hab_not_hab[i])) {
+    dfo_sar_w_ais$mean_of_maxent_hab_not_hab[i] = 0
   }
 }
 
 hab_suit_df <-  do.call(rbind, lapply(hab_suit, function(x) {
   data.frame(
     wb_name = x$wb_name,
-    watershed = paste(x$watershed, collapse = ", "),  # Keep watershed info as a string if needed
+    watershed = x$watershed,  # Keep watershed info as a string if needed
     species = I(list(x$species)),  # Store species as a list
     percentage = I(list(x$percentage)),  # Store percentages as a list
     stringsAsFactors = FALSE
@@ -248,13 +257,14 @@ hab_suit_df <-  do.call(rbind, lapply(hab_suit, function(x) {
 }))
 
 hab_suit_df <- hab_suit_df |> 
-  unnest(cols = c(species, percentage))
+  unnest(cols = c(species, percentage)) |> 
+  as.data.frame()
 
 
 # Final - write to excel
 # Drop some columns that we don't need for the Excel output
 dfo_output = dfo_sar_w_ais |>
-  dplyr::select(-c(FWA_WATERSHED_CODE,BLUE_LINE_KEY,wb_type))
+  dplyr::select(-c(FWA_WATERSHED_CODE,BLUE_LINE_KEY,wb_type, sum_of_maxent_hab_not_hab))
 
 
 
@@ -264,3 +274,4 @@ openxlsx::writeData(my_wb, "output", dfo_output)
 openxlsx::addWorksheet(my_wb, "habitat_suitabilities")
 openxlsx::writeData(my_wb, "habitat_suitabilities", hab_suit_df)
 openxlsx::saveWorkbook(my_wb, file = 'output/SARA_prioritization_model_output.xlsx', overwrite = T)
+
