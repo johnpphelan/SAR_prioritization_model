@@ -18,6 +18,7 @@ library(ecospat)
 #devtools::install_github('chrispmad/fwa.connect')
 library(fwa.connect)
 library(tidyterra)
+library(tidyr)
 
 # library(ENMeval)
 
@@ -267,11 +268,39 @@ dfo_output = dfo_sar_w_ais |>
   dplyr::select(-c(FWA_WATERSHED_CODE,BLUE_LINE_KEY,wb_type, sum_of_maxent_hab_not_hab))
 
 
+# get unique combinations
+sar_ais_combo<-data.frame(dfo_sar_w_ais$Common_Name_EN, dfo_sar_w_ais$ais_present_names, dfo_sar_w_ais$ais_upstream_names)
+
+sar_ais_combo_test<- sar_ais_combo |> 
+  separate_longer_delim(dfo_sar_w_ais.Common_Name_EN, delim = ",") |> 
+  separate_longer_delim(dfo_sar_w_ais.ais_present_names, delim = ",") |> 
+  separate_longer_delim(dfo_sar_w_ais.ais_upstream_names, delim = ",")
+  
+unique_combos<- sar_ais_combo_test |> 
+  pivot_longer(cols = 2:3, names_to = "ais_type", values_to = "ais_name") %>%
+  filter(!is.na(ais_name)) %>% # Remove NA values
+  distinct() |> 
+  select(-ais_type) |> 
+  filter(ais_name != "") |> 
+  rename(sar_name = dfo_sar_w_ais.Common_Name_EN) |> 
+  mutate(sar_name = trimws(sar_name), ais_name = trimws(ais_name)) |> 
+  distinct() |> 
+  arrange(sar_name, ais_name) 
+  
+
+  #separate_longer_delim(across(everything()), delim = ",")
+  #separate_rows(sar_ais_combo, dfo_sar_w_ais.Common_Name_EN, delim = ",")
+
+
+
+
 
 my_wb = openxlsx::createWorkbook()
 openxlsx::addWorksheet(my_wb, "output")
 openxlsx::writeData(my_wb, "output", dfo_output)
 openxlsx::addWorksheet(my_wb, "habitat_suitabilities")
 openxlsx::writeData(my_wb, "habitat_suitabilities", hab_suit_df)
+openxlsx::addWorksheet(my_wb, "SAR and AIS combintations")
+openxlsx::writeData(my_wb, "SAR and AIS combintations", unique_combos)
 openxlsx::saveWorkbook(my_wb, file = 'output/SARA_prioritization_model_output.xlsx', overwrite = T)
 
