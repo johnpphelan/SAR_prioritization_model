@@ -277,8 +277,8 @@ sar_ais_combo_test<- sar_ais_combo |>
   separate_longer_delim(dfo_sar_w_ais.ais_upstream_names, delim = ",")
   
 unique_combos<- sar_ais_combo_test |> 
-  pivot_longer(cols = 2:3, names_to = "ais_type", values_to = "ais_name") %>%
-  filter(!is.na(ais_name)) %>% # Remove NA values
+  pivot_longer(cols = 2:3, names_to = "ais_type", values_to = "ais_name") |> 
+  filter(!is.na(ais_name)) |> 
   distinct() |> 
   select(-ais_type) |> 
   filter(ais_name != "") |> 
