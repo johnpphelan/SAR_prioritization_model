@@ -291,6 +291,9 @@ unique_combos<- sar_ais_combo_test |>
   #separate_longer_delim(across(everything()), delim = ",")
   #separate_rows(sar_ais_combo, dfo_sar_w_ais.Common_Name_EN, delim = ",")
 
+unique_ais<-unique_combos |> 
+  distinct(ais_name)
+
 
 
 
@@ -302,5 +305,8 @@ openxlsx::addWorksheet(my_wb, "habitat_suitabilities")
 openxlsx::writeData(my_wb, "habitat_suitabilities", hab_suit_df)
 openxlsx::addWorksheet(my_wb, "SAR and AIS combintations")
 openxlsx::writeData(my_wb, "SAR and AIS combintations", unique_combos)
+openxlsx::addWorksheet(my_wb, "AIS present")
+openxlsx::writeData(my_wb, "AIS present", unique_ais)
+
 openxlsx::saveWorkbook(my_wb, file = 'output/SARA_prioritization_model_output.xlsx', overwrite = T)
 
