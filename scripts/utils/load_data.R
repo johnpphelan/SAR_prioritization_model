@@ -7,7 +7,7 @@ fras = sf::read_sf(paste0(onedrive_wd,"CNF/fraser_watershed_priority_area.gpkg")
 col = sf::read_sf(paste0(onedrive_wd,"CNF/columbia_watershed_priority_area.gpkg"))
 frascol = dplyr::bind_rows(fras,col) |> dplyr::summarise() |> sf::st_transform(4326)
 # Read in SARA-listed species plus Sockeye Salmon (for all of BC)
-dfo_sar = sf::read_sf(paste0(onedrive_wd,"CNF/dfo_sara_and_crit_hab_and_sockeye_data.gpkg")) |> sf::st_transform(4326)
+dfo_sar = sf::read_sf(paste0(onedrive_wd,"CNF/dfo_sara_and_crit_hab_bulltrout_and_sockeye_data.gpkg")) |> sf::st_transform(4326)
 # list of invasive species on our watch list.
 ais_occs = sf::read_sf(paste0(lan_root, "2 SCIENCE - Invasives/SPECIES/5_Incidental Observations/AIS_occurrences_all_sources.gpkg")) |>
   sf::st_transform(4326)
