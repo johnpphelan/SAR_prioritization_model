@@ -21,6 +21,7 @@ library(fwa.connect)
 library(tidyterra)
 library(tidyr)
 
+
 # library(ENMeval)
 
 # =========================================
@@ -213,11 +214,39 @@ for(i in 1:nrow(dfo_sar_w_ais)){
       percentage = 0
       warning(paste0("On loop run ",i,", MaxEnt not found for ",ais_spp, " (searched for ",species_folder,")"))
     }else{
+      
       the_pred_r = terra::rast(paste0(species_folder,"MaxEnt_prediction_habitat_or_not.tif"))
 
         the_pred_about_wb = terra::crop(the_pred_r, sf::st_buffer(the_wb, 5000))
         #waterbody only
         the_pred_wb_masked <- mask(the_pred_about_wb, the_wb)
+        pred_plot<-the_pred_wb_masked
+        pred_plot[pred_plot != 1] <- NA
+        # save the raster to a folder, so they can be linked in the excel file
+        output_path <- paste0("output/spp_wb_overlap/", dfo_sar_w_ais$waterbody[i], "/",the_species_snake,"_masked_habOrNot.jpeg")
+        dir.create(dirname(output_path), recursive = TRUE, showWarnings = FALSE)
+        spp_hab_plot <- ggplot() +
+          geom_spatraster(data = pred_plot) +  # Add raster layer+
+          labs(title = paste0("Waterbody: ", dfo_sar_w_ais$waterbody[i], "\nSpecies: ",ais_spp))+
+          geom_sf(data = the_wb, fill = "transparent", color = "black") +  # Plot waterbodies
+          scale_fill_gradient(low = "lightgreen", high = "lightgreen", na.value = "transparent") +  # Ensure habitat areas are blue
+          theme_minimal()+
+          theme(plot.title = element_text(face = "bold", size = 14))
+          
+        #spp_hab_plot
+        
+        inset_bc <- ggplot() +
+          geom_sf(data = bc, fill = "lightgray", color = "black") +  # Full BC map
+          geom_sf(data = the_wb, fill = "red", color = "red") +  # Highlight the waterbody
+          theme_void()  # Remove axes and grid
+        
+        #inset_grob <- ggplotGrob(inset_bc)
+        
+        final_plot <- ggarrange(spp_hab_plot, inset_bc, 
+                                ncol = 2, nrow = 1, heights = c(3, 1))
+        
+        ggexport(final_plot, filename = output_path, width = 1200, height = 600)
+        
         # Count the total number of pixels in the waterbody
         total_pixels <- sum(!is.na(values(the_pred_wb_masked)))
         ones_count <- sum(values(the_pred_wb_masked) == 1, na.rm = TRUE)
@@ -375,6 +404,7 @@ dfo_output = dfo_output_long |>
   dplyr::group_by(waterbody, watershed, ais_present_in_wb, number_ais_present, ais_upstream, ais_upstream_number, mean_of_maxent_hab_not_hab) |>
   dplyr::reframe(across(c(Common_Name_EN:ais_present_names,ais_upstream_names,ais_sp_and_mean_effect), \(x) paste0(unique(x), collapse = ', ')),
                  summed_ais_effects = sum(mean_ais_effect)) |>
+  
   dplyr::select(names(dfo_output), summed_ais_effects, ais_sp_and_mean_effect)
 
 # Prepare results for Excel file.
