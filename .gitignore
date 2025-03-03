@@ -4,8 +4,4 @@
 .Ruserdata
 SAR_prioritization_model.Rproj
 CMI
-output/2025_02-25_ais_present.xlsx
-output/2025_02_18_sar_ais_combiations.xlsx
-output/SARA_prioritization_model_output 2.xlsx
-output/SARA_prioritization_model_output_backup.xlsx
-output/SARA_prioritization_model_output.xlsx
+output/*

@@ -123,6 +123,7 @@ dfo_sar_w_ais = dfo_sar_w_ais |>
 dfo_sar_w_ais$ais_upstream = FALSE
 dfo_sar_w_ais$ais_upstream_names = ""
 dfo_sar_w_ais$ais_upstream_number = 0
+dfo_sar_w_ais$number_upstream_waterbodies = 0
 dfo_sar_w_ais$sum_of_maxent_hab_not_hab = 0
 
 for(i in 1:nrow(dfo_sar_w_ais)){
@@ -144,6 +145,37 @@ for(i in 1:nrow(dfo_sar_w_ais)){
 
   upstream_named_wbs = upstream_named_wbs |>
     dplyr::filter(watershed == row_watershed)
+
+  # Record the number of named upstream waterbodies detected.
+  dfo_sar_w_ais$number_upstream_waterbodies[i] = nrow(upstream_named_wbs)
+  # if(nrow(upstream_named_wbs) > 0) print(paste0("row ",i, " has at least one upstream named waterbody."))
+
+  # Check if there are any named lakes that are touching the 1+ upstream
+  # waterbody/waterbodies.
+  upstream_wbs_streams = upstream_named_wbs |>
+    dplyr::filter(stringr::str_detect(waterbody,"(Stream|Creek|River)"))
+
+  if(nrow(upstream_wbs_streams) > 0){
+    for(i in 1:nrow(upstream_wbs_streams)){
+      upstream_wbs_stream = upstream_wbs_streams[i,]
+      upstream_wbs_stream_fwa = upstream_wbs_stream$FWA_WATERSHED_CODE
+      upstream_wbs_stream_fwa_prefix = str_remove(upstream_wbs_stream_fwa, "000000.*")
+      additional_upstream_wbs = named_wbs |>
+        dplyr::filter(str_detect(FWA_WATERSHED_CODE,paste0(upstream_wbs_stream_fwa_prefix))) |>
+        dplyr::filter(FWA_WATERSHED_CODE != upstream_wbs_stream_fwa) |>
+        dplyr::filter(str_detect(FWA_WATERSHED_CODE,paste0(upstream_wbs_stream_fwa_prefix,"(?!000000)"))) |>
+        dplyr::filter(str_detect(FWA_WATERSHED_CODE,paste0(upstream_wbs_stream_fwa_prefix,"[0-9]{6}-000000"))) |>
+        dplyr::filter(str_detect(waterbody,"Lake")) |>
+        sf::st_drop_geometry()
+      if(nrow(additional_upstream_wbs) > 0){
+        print("An additional upstream lake that was touching the network of upstream waterbodies was added to the dataframe of upstream waterbodies!")
+        upstream_named_wbs = dplyr::bind_rows(
+          upstream_named_wbs
+        )
+      }
+    }
+
+  }
 
   ais_upstream = upstream_named_wbs |>
     dplyr::select(-wb_type) |>
@@ -214,66 +246,66 @@ for(i in 1:nrow(dfo_sar_w_ais)){
       percentage = 0
       warning(paste0("On loop run ",i,", MaxEnt not found for ",ais_spp, " (searched for ",species_folder,")"))
     }else{
-      
+
       the_pred_r = terra::rast(paste0(species_folder,"MaxEnt_prediction_habitat_or_not.tif"))
 
-        the_pred_about_wb = terra::crop(the_pred_r, sf::st_buffer(the_wb, 5000))
-        #waterbody only
-        the_pred_wb_masked <- mask(the_pred_about_wb, the_wb)
-        pred_plot<-the_pred_wb_masked
-        pred_plot[pred_plot != 1] <- NA
-        # save the raster to a folder, so they can be linked in the excel file
-        output_path <- paste0("output/spp_wb_overlap/", dfo_sar_w_ais$waterbody[i], "/",the_species_snake,"_masked_habOrNot.jpeg")
-        dir.create(dirname(output_path), recursive = TRUE, showWarnings = FALSE)
-        spp_hab_plot <- ggplot() +
-          geom_spatraster(data = pred_plot) +  # Add raster layer+
-          labs(title = paste0("Waterbody: ", dfo_sar_w_ais$waterbody[i], "\nSpecies: ",ais_spp))+
-          geom_sf(data = the_wb, fill = "transparent", color = "black") +  # Plot waterbodies
-          scale_fill_gradient(low = "lightgreen", high = "lightgreen", na.value = "transparent") +  # Ensure habitat areas are blue
-          theme_minimal()+
-          theme(plot.title = element_text(face = "bold", size = 14))
-          
-        #spp_hab_plot
-        
-        inset_bc <- ggplot() +
-          geom_sf(data = bc, fill = "lightgray", color = "black") +  # Full BC map
-          geom_sf(data = the_wb, fill = "red", color = "red") +  # Highlight the waterbody
-          theme_void()  # Remove axes and grid
-        
-        #inset_grob <- ggplotGrob(inset_bc)
-        
-        final_plot <- ggarrange(spp_hab_plot, inset_bc, 
-                                ncol = 2, nrow = 1, heights = c(3, 1))
-        
-        ggexport(final_plot, filename = output_path, width = 1200, height = 600)
-        
-        # Count the total number of pixels in the waterbody
-        total_pixels <- sum(!is.na(values(the_pred_wb_masked)))
-        ones_count <- sum(values(the_pred_wb_masked) == 1, na.rm = TRUE)
-        percentage <- (ones_count / total_pixels) * 100
+      the_pred_about_wb = terra::crop(the_pred_r, sf::st_buffer(the_wb, 5000))
+      #waterbody only
+      the_pred_wb_masked <- mask(the_pred_about_wb, the_wb)
+      pred_plot<-the_pred_wb_masked
+      pred_plot[pred_plot != 1] <- NA
+      # save the raster to a folder, so they can be linked in the excel file
+      output_path <- paste0("output/spp_wb_overlap/", dfo_sar_w_ais$waterbody[i], "/",the_species_snake,"_masked_habOrNot.jpeg")
+      dir.create(dirname(output_path), recursive = TRUE, showWarnings = FALSE)
+      spp_hab_plot <- ggplot() +
+        geom_spatraster(data = pred_plot) +  # Add raster layer+
+        labs(title = paste0("Waterbody: ", dfo_sar_w_ais$waterbody[i], "\nSpecies: ",ais_spp))+
+        geom_sf(data = the_wb, fill = "transparent", color = "black") +  # Plot waterbodies
+        scale_fill_gradient(low = "lightgreen", high = "lightgreen", na.value = "transparent") +  # Ensure habitat areas are blue
+        theme_minimal()+
+        theme(plot.title = element_text(face = "bold", size = 14))
 
-        print(i)
-        # the_pred_wb_masked <- as.factor(the_pred_wb_masked)
-        # levels(the_pred_wb_masked) <- list(data.frame(ID = c(0, 1), fc.LQ_rm.1 = c("FALSE", "TRUE")))
-        # ggplot() +
-        #   geom_sf(data = the_wb) +
-        #   geom_spatraster(data = the_pred_wb_masked, alpha = 0.6) +
-        #   coord_sf(crs = st_crs(the_wb)) +
-        #   scale_fill_manual(
-        #     values = c("FALSE" = "lightgreen", "TRUE" = "purple"),  # Discrete color scale
-        #     na.value = "transparent"  # Handle NA values
-        #   ) +
-        #   labs(title = "Prediction around Waterbody") +
-        #   theme_bw()
+      #spp_hab_plot
+
+      inset_bc <- ggplot() +
+        geom_sf(data = bc, fill = "lightgray", color = "black") +  # Full BC map
+        geom_sf(data = the_wb, fill = "red", color = "red") +  # Highlight the waterbody
+        theme_void()  # Remove axes and grid
+
+      #inset_grob <- ggplotGrob(inset_bc)
+
+      final_plot <- ggarrange(spp_hab_plot, inset_bc,
+                              ncol = 2, nrow = 1, heights = c(3, 1))
+
+      ggexport(final_plot, filename = output_path, width = 1200, height = 600)
+
+      # Count the total number of pixels in the waterbody
+      total_pixels <- sum(!is.na(values(the_pred_wb_masked)))
+      ones_count <- sum(values(the_pred_wb_masked) == 1, na.rm = TRUE)
+      percentage <- (ones_count / total_pixels) * 100
+
+      print(i)
+      # the_pred_wb_masked <- as.factor(the_pred_wb_masked)
+      # levels(the_pred_wb_masked) <- list(data.frame(ID = c(0, 1), fc.LQ_rm.1 = c("FALSE", "TRUE")))
+      # ggplot() +
+      #   geom_sf(data = the_wb) +
+      #   geom_spatraster(data = the_pred_wb_masked, alpha = 0.6) +
+      #   coord_sf(crs = st_crs(the_wb)) +
+      #   scale_fill_manual(
+      #     values = c("FALSE" = "lightgreen", "TRUE" = "purple"),  # Discrete color scale
+      #     na.value = "transparent"  # Handle NA values
+      #   ) +
+      #   labs(title = "Prediction around Waterbody") +
+      #   theme_bw()
     }
-      # how to gather all the percentages?
-      # Keep them separate for each species, then sum them up for final presentation
+    # how to gather all the percentages?
+    # Keep them separate for each species, then sum them up for final presentation
 
-      dfo_sar_w_ais$sum_of_maxent_hab_not_hab[i] = dfo_sar_w_ais$sum_of_maxent_hab_not_hab[i] + percentage
-      #now we want to store the percentage for each species in habitat_suitablities
-      # save the names of the waterbodies, the species and the percentage
-      # hab_suit[[length(hab_suit)+1]] <- list(wb_name = dfo_sar_w_ais$waterbody[i], watershed = dfo_sar_w_ais$watershed[i], species = the_species_snake, percentage = percentage)
-      hab_suit[[length(hab_suit)+1]] <- data.frame(wb_name = dfo_sar_w_ais$waterbody[i], watershed = dfo_sar_w_ais$watershed[i], species = the_species_snake, percentage = percentage)
+    dfo_sar_w_ais$sum_of_maxent_hab_not_hab[i] = dfo_sar_w_ais$sum_of_maxent_hab_not_hab[i] + percentage
+    #now we want to store the percentage for each species in habitat_suitablities
+    # save the names of the waterbodies, the species and the percentage
+    # hab_suit[[length(hab_suit)+1]] <- list(wb_name = dfo_sar_w_ais$waterbody[i], watershed = dfo_sar_w_ais$watershed[i], species = the_species_snake, percentage = percentage)
+    hab_suit[[length(hab_suit)+1]] <- data.frame(wb_name = dfo_sar_w_ais$waterbody[i], watershed = dfo_sar_w_ais$watershed[i], species = the_species_snake, percentage = percentage)
 
   }
   dfo_sar_w_ais$mean_of_maxent_hab_not_hab[i] = dfo_sar_w_ais$sum_of_maxent_hab_not_hab[i] / length(sp_upstream_of_wb_split)
@@ -311,47 +343,47 @@ dfo_output = dfo_sar_w_ais |>
 # fill in how impactful a given AIS might be for a given SAR species.
 if(!file.exists("output/SARA_prioritization_model_output.xlsx")){
 
-# get unique combinations
-sar_ais_combo<-data.frame(dfo_sar_w_ais$Common_Name_EN, dfo_sar_w_ais$ais_present_names, dfo_sar_w_ais$ais_upstream_names)
+  # get unique combinations
+  sar_ais_combo<-data.frame(dfo_sar_w_ais$Common_Name_EN, dfo_sar_w_ais$ais_present_names, dfo_sar_w_ais$ais_upstream_names)
 
-sar_ais_combo_test<- sar_ais_combo |>
-  separate_longer_delim(dfo_sar_w_ais.Common_Name_EN, delim = ",") |>
-  separate_longer_delim(dfo_sar_w_ais.ais_present_names, delim = ",") |>
-  separate_longer_delim(dfo_sar_w_ais.ais_upstream_names, delim = ",")
+  sar_ais_combo_test<- sar_ais_combo |>
+    separate_longer_delim(dfo_sar_w_ais.Common_Name_EN, delim = ",") |>
+    separate_longer_delim(dfo_sar_w_ais.ais_present_names, delim = ",") |>
+    separate_longer_delim(dfo_sar_w_ais.ais_upstream_names, delim = ",")
 
-unique_combos<- sar_ais_combo_test |>
-  pivot_longer(cols = 2:3, names_to = "ais_type", values_to = "ais_name") |>
-  filter(!is.na(ais_name)) |>
-  distinct() |>
-  select(-ais_type) |>
-  filter(ais_name != "") |>
-  rename(sar_name = dfo_sar_w_ais.Common_Name_EN) |>
-  mutate(sar_name = trimws(sar_name), ais_name = trimws(ais_name)) |>
-  distinct() |>
-  arrange(sar_name, ais_name)
+  unique_combos<- sar_ais_combo_test |>
+    pivot_longer(cols = 2:3, names_to = "ais_type", values_to = "ais_name") |>
+    filter(!is.na(ais_name)) |>
+    distinct() |>
+    select(-ais_type) |>
+    filter(ais_name != "") |>
+    rename(sar_name = dfo_sar_w_ais.Common_Name_EN) |>
+    mutate(sar_name = trimws(sar_name), ais_name = trimws(ais_name)) |>
+    distinct() |>
+    arrange(sar_name, ais_name)
 
 
   #separate_longer_delim(across(everything()), delim = ",")
   #separate_rows(sar_ais_combo, dfo_sar_w_ais.Common_Name_EN, delim = ",")
 
-unique_ais<-unique_combos |>
-  distinct(ais_name)
+  unique_ais<-unique_combos |>
+    distinct(ais_name)
 
 
 
 
 
-my_wb = openxlsx::createWorkbook()
-openxlsx::addWorksheet(my_wb, "output")
-openxlsx::writeData(my_wb, "output", dfo_output)
-openxlsx::addWorksheet(my_wb, "habitat_suitabilities")
-openxlsx::writeData(my_wb, "habitat_suitabilities", hab_suit_df)
-openxlsx::addWorksheet(my_wb, "SAR and AIS combintations")
-openxlsx::writeData(my_wb, "SAR and AIS combintations", unique_combos)
-openxlsx::addWorksheet(my_wb, "AIS present")
-openxlsx::writeData(my_wb, "AIS present", unique_ais)
+  my_wb = openxlsx::createWorkbook()
+  openxlsx::addWorksheet(my_wb, "output")
+  openxlsx::writeData(my_wb, "output", dfo_output)
+  openxlsx::addWorksheet(my_wb, "habitat_suitabilities")
+  openxlsx::writeData(my_wb, "habitat_suitabilities", hab_suit_df)
+  openxlsx::addWorksheet(my_wb, "SAR and AIS combintations")
+  openxlsx::writeData(my_wb, "SAR and AIS combintations", unique_combos)
+  openxlsx::addWorksheet(my_wb, "AIS present")
+  openxlsx::writeData(my_wb, "AIS present", unique_ais)
 
-openxlsx::saveWorkbook(my_wb, file = 'output/SARA_prioritization_model_output.xlsx', overwrite = T)
+  openxlsx::saveWorkbook(my_wb, file = 'output/SARA_prioritization_model_output.xlsx', overwrite = T)
 }
 
 # Add these effects
@@ -401,10 +433,9 @@ dfo_output_long = dfo_output_long |>
 # Resummarise by waterbody!
 dfo_output = dfo_output_long |>
   dplyr::mutate(ais_sp_and_mean_effect = paste0(ais_present_names, " (", mean_ais_effect,")")) |>
-  dplyr::group_by(waterbody, watershed, ais_present_in_wb, number_ais_present, ais_upstream, ais_upstream_number, mean_of_maxent_hab_not_hab) |>
+  dplyr::group_by(waterbody, watershed, ais_present_in_wb, number_ais_present, ais_upstream, ais_upstream_number, number_upstream_waterbodies, mean_of_maxent_hab_not_hab) |>
   dplyr::reframe(across(c(Common_Name_EN:ais_present_names,ais_upstream_names,ais_sp_and_mean_effect), \(x) paste0(unique(x), collapse = ', ')),
                  summed_ais_effects = sum(mean_ais_effect)) |>
-  
   dplyr::select(names(dfo_output), summed_ais_effects, ais_sp_and_mean_effect)
 
 # Prepare results for Excel file.
