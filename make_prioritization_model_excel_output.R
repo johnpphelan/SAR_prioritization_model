@@ -112,7 +112,7 @@ ais_occs_no_dups = ais_occs_no_dups |>
 dfo_sar_w_ais = dfo_sar_w_wb_no_dups |>
   dplyr::left_join(ais_occs_no_dups, by = join_by(waterbody,BLUE_LINE_KEY,watershed,FWA_WATERSHED_CODE, wb_type))
 
-# 3. Calculate some columns =====================
+# 3. Enumerate Upstream AIS =====================
 
 dfo_sar_w_ais = dfo_sar_w_ais |>
   dplyr::mutate(ais_present_in_wb = !is.na(Species)) |>
@@ -156,8 +156,8 @@ for(i in 1:nrow(dfo_sar_w_ais)){
     dplyr::filter(stringr::str_detect(waterbody,"(Stream|Creek|River)"))
 
   if(nrow(upstream_wbs_streams) > 0){
-    for(i in 1:nrow(upstream_wbs_streams)){
-      upstream_wbs_stream = upstream_wbs_streams[i,]
+    for(y in 1:nrow(upstream_wbs_streams)){
+      upstream_wbs_stream = upstream_wbs_streams[y,]
       upstream_wbs_stream_fwa = upstream_wbs_stream$FWA_WATERSHED_CODE
       upstream_wbs_stream_fwa_prefix = str_remove(upstream_wbs_stream_fwa, "000000.*")
       additional_upstream_wbs = named_wbs |>
@@ -314,6 +314,7 @@ for(i in 1:nrow(dfo_sar_w_ais)){
   }
 }
 
+# Add links to
 hab_suit_df = dplyr::bind_rows(hab_suit) |>
   tidyr::as_tibble()
 
