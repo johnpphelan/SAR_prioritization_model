@@ -113,7 +113,6 @@ dfo_sar_w_ais = dfo_sar_w_wb_no_dups |>
   dplyr::left_join(ais_occs_no_dups, by = join_by(waterbody,BLUE_LINE_KEY,watershed,FWA_WATERSHED_CODE, wb_type))
 
 # 3. Enumerate Upstream AIS =====================
-
 dfo_sar_w_ais = dfo_sar_w_ais |>
   dplyr::mutate(ais_present_in_wb = !is.na(Species)) |>
   dplyr::rename(ais_present_names = Species) |>
@@ -314,24 +313,20 @@ for(i in 1:nrow(dfo_sar_w_ais)){
   }
 }
 
-# Add links to
 hab_suit_df = dplyr::bind_rows(hab_suit) |>
   tidyr::as_tibble()
 
-# hab_suit_df <- do.call(rbind, lapply(hab_suit, function(x) {
-#   data.frame(
-#     wb_name = x$wb_name,
-#     watershed = x$watershed,  # Keep watershed info as a string if needed
-#     species = I(list(x$species)),  # Store species as a list
-#     percentage = I(list(x$percentage)),  # Store percentages as a list
-#     stringsAsFactors = FALSE
-#   )
-# })) |>
-#   tidyr::as_tibble()
-
-# hab_suit_df <- hab_suit_df |>
-#   unnest(cols = c(species, percentage)) |>
-#   as.data.frame()
+# Add categories of action based on AIS presence
+# AIS in wb and not upstream = eradication? (moderate priority of all the possible actions?)
+# AIS in wb and upstream = monitoring (lowest priority of the possible actions?)
+# AIS not in wb but upstream = monitoring and prevention (highest priority, as it's most feasible?)
+dfo_sar_w_ais = dfo_sar_w_ais |>
+  dplyr::mutate(action = dplyr::case_when(
+    ais_present_in_wb & ais_upstream ~ "Monitoring",
+    ais_present_in_wb & !ais_upstream ~ "Eradication",
+    !ais_present_in_wb & ais_upstream ~ "Monitoring and Prevention",
+    T ~ "Unknown"
+  ))
 
 # Final - write to excel
 # Drop some columns that we don't need for the Excel output
