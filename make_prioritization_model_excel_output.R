@@ -505,9 +505,24 @@ ggplot(dfo_output_final,aes(risk_total)) + geom_histogram() + facet_wrap( ~ acti
 
 # Prepare results for Excel file.
 
+# Round some digits and adjust column placement!
+dfo_output_final = dfo_output_final |>
+  dplyr::mutate(dplyr::across(dplyr::where(is.numeric), \(x) round(x,2))) |>
+  dplyr::select(waterbody:mean_of_maxent_hab_not_hab,cultural_significance:max_upstream_ais_on_sara_effect,
+                action,risk_total_in_wb:risk_total)
+
+# Replace NA / Nulls / weird stuff with "NA"
+dfo_output_final = dfo_output_final |>
+  dplyr::mutate(dplyr::across(c(cultural_significance,ais_sp_and_mean_effect,
+                                mean_uncertainty,max_ais_on_sara_effect,
+                                summed_upstream_ais_effects,summed_upstream_uncertainties,
+                                upstream_ais_sp_mean_effect,mean_upstream_uncertainty,
+                                max_upstream_ais_on_sara_effect), \(x) ifelse(is.na(x) | is.nan(x) | x == "NA - NaN (Uncert. NA)", "NA", x)))
+
 my_wb = openxlsx::createWorkbook()
 openxlsx::addWorksheet(my_wb, "output")
 openxlsx::writeData(my_wb, "output", dfo_output_final)
+openxlsx::setColWidths(my_wb, "output", cols = 1:ncol(dfo_output_final), widths = 30)
 openxlsx::addWorksheet(my_wb, "habitat_suitabilities")
 openxlsx::writeData(my_wb, "habitat_suitabilities", hab_suit_df)
 openxlsx::saveWorkbook(my_wb, paste0("output/SARA_prioritization_model_",Sys.Date(),".xlsx"), overwrite = T)
