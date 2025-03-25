@@ -21,6 +21,7 @@ library(fwa.connect)
 library(tidyterra)
 library(tidyr)
 
+remake_hab_images = FALSE
 
 # library(ENMeval)
 
@@ -321,10 +322,10 @@ hab_suit_df = dplyr::bind_rows(hab_suit) |>
 # AIS in wb and upstream = monitoring (lowest priority of the possible actions?)
 # AIS not in wb but upstream = monitoring and prevention (highest priority, as it's most feasible?)
 dfo_sar_w_ais = dfo_sar_w_ais |>
-  dplyr::mutate(action = dplyr::case_when(
-    ais_present_in_wb & ais_upstream ~ "Monitoring",
-    ais_present_in_wb & !ais_upstream ~ "Eradication",
-    !ais_present_in_wb & ais_upstream ~ "Monitoring and Prevention",
+  dplyr::mutate(status = dplyr::case_when(
+    ais_present_in_wb & ais_upstream ~ "AIS in WB and upstream",
+    ais_present_in_wb & !ais_upstream ~ "AIS in WB only",
+    !ais_present_in_wb & ais_upstream ~ "AIS upstream only",
     T ~ "Unknown"
   ))
 
@@ -415,28 +416,32 @@ dfo_output_long = dfo_output_long |>
   dplyr::ungroup() |>
   tidyr::pivot_wider()
 
-# Add cultural significance column
+# Add First Nations cultural significance column, Expert Opinions for SAR and AIS,
+# and population importance.
 dfo_output_long = dfo_output_long |>
-  dplyr::mutate(cultural_significance = NA)
+  dplyr::mutate(FN_cultural_significance = NA,
+                expert_opinion_AIS = NA,
+                expert_opinion_SARA = NA,
+                population_importance = NA)
 
-# Resummarise by waterbody!
+# Resummarise by waterbody and SARA species!
 dfo_output = dfo_output_long |>
-  dplyr::mutate(ais_sp_and_mean_effect = paste0(ais_present_names, " - ", round(mean_ais_effect,3)," (Uncert. ",uncertainty,")")) |>
-  dplyr::group_by(waterbody, watershed, action, ais_present_in_wb, number_ais_present, ais_upstream, ais_upstream_number,
-                  number_upstream_waterbodies, mean_of_maxent_hab_not_hab, cultural_significance) |>
-  dplyr::reframe(across(c(Common_Name_EN:ais_present_names,ais_upstream_names,ais_sp_and_mean_effect), \(x) paste0(unique(x), collapse = ', ')),
-                 summed_ais_effects = sum(mean_ais_effect,na.rm=T),
-                 summed_uncertainties = sum(uncertainty,na.rm=T),
-                 mean_uncertainty = mean(uncertainty,na.rm=T),
-                 max_ais_on_sara_effect = max(mean_ais_effect,na.rm=T)) |>
-  dplyr::select(names(dfo_output), cultural_significance, summed_ais_effects, summed_uncertainties, ais_sp_and_mean_effect, mean_uncertainty,max_ais_on_sara_effect) |>
+  dplyr::mutate(ais_sp_in_wb_mean_effect = paste0(ais_present_names, " - ", round(mean_ais_effect,3)," (Uncert. ",uncertainty,")")) |>
+  dplyr::group_by(waterbody, watershed, status, Common_Name_EN, Population_EN, Scientific_Name,
+                  ais_present_in_wb, number_ais_present, ais_upstream, ais_upstream_number,
+                  number_upstream_waterbodies, mean_of_maxent_hab_not_hab, FN_cultural_significance,
+                  expert_opinion_AIS,expert_opinion_SARA,population_importance) |>
+  dplyr::reframe(across(c(ais_present_names,ais_upstream_names,ais_sp_in_wb_mean_effect), \(x) paste0(unique(x), collapse = ', ')),
+                 summed_ais_in_wb_effects = sum(mean_ais_effect,na.rm=T),
+                 summed_in_wb_uncertainties = sum(uncertainty,na.rm=T),
+                 mean_in_wb_uncertainty = mean(uncertainty,na.rm=T),
+                 max_ais_in_wb_on_sara_effect = max(mean_ais_effect,na.rm=T)) |>
   # Replace -Inf for max AIS on SARA effect with NA
-  dplyr::mutate(max_ais_on_sara_effect = ifelse(max_ais_on_sara_effect == -Inf, NA, max_ais_on_sara_effect))
+  dplyr::mutate(max_ais_in_wb_on_sara_effect = ifelse(max_ais_in_wb_on_sara_effect == -Inf, NA, max_ais_in_wb_on_sara_effect))
 
 # ------------------------------------------------------
 # As above, but for AIS upstream!
 dfo_output_long = dfo_output |>
-  tidyr::separate_longer_delim(cols = c(Common_Name_EN), delim = ", ") |>
   tidyr::separate_longer_delim(cols = c(ais_upstream_names), delim = ", ") |>
   dplyr::mutate(ais_upstream_names = str_to_title(ais_upstream_names)) |>
   # Where the same species is upstream AND in the wb, don't worry about upstream effects.
@@ -456,21 +461,21 @@ dfo_output_long = dfo_output_long |>
   dplyr::ungroup() |>
   tidyr::pivot_wider()
 
-# Resummarise by waterbody!
+# Resummarise by waterbody and SARA species!
 dfo_output_upstream = dfo_output_long |>
   dplyr::mutate(upstream_ais_sp_mean_effect = paste0(ais_upstream_names, " - ", round(mean_ais_upstream_effect,3)," (Uncert. ",uncertainty,")")) |>
-  dplyr::group_by(waterbody, watershed, action, ais_present_in_wb, number_ais_present,
+  dplyr::group_by(waterbody, watershed, status, Common_Name_EN, Population_EN, Scientific_Name,
+                  ais_present_in_wb, number_ais_present,
                   ais_upstream, ais_upstream_number, ais_present_names,
-                  number_upstream_waterbodies, mean_of_maxent_hab_not_hab, cultural_significance,
-                  summed_ais_effects, summed_uncertainties, ais_sp_and_mean_effect, mean_uncertainty,
-                  max_ais_on_sara_effect) |>
-  dplyr::reframe(across(c(Common_Name_EN:Scientific_Name,ais_upstream_names,upstream_ais_sp_mean_effect), \(x) paste0(unique(x), collapse = ', ')),
+                  number_upstream_waterbodies, mean_of_maxent_hab_not_hab, FN_cultural_significance,
+                  expert_opinion_AIS, expert_opinion_SARA, population_importance,
+                  summed_ais_in_wb_effects, summed_in_wb_uncertainties, ais_sp_in_wb_mean_effect, mean_in_wb_uncertainty,
+                  max_ais_in_wb_on_sara_effect) |>
+  dplyr::reframe(across(c(ais_upstream_names,upstream_ais_sp_mean_effect), \(x) paste0(unique(x), collapse = ', ')),
                  summed_upstream_ais_effects = sum(mean_ais_upstream_effect,na.rm=T),
                  summed_upstream_uncertainties = sum(uncertainty,na.rm=T),
                  mean_upstream_uncertainty = mean(uncertainty,na.rm=T),
                  max_upstream_ais_on_sara_effect = max(mean_ais_upstream_effect,na.rm=T)) |>
-  dplyr::select(names(dfo_output), summed_upstream_ais_effects, summed_upstream_uncertainties,
-                upstream_ais_sp_mean_effect, mean_upstream_uncertainty, max_upstream_ais_on_sara_effect) |>
   # Replace -Inf for max AIS on SARA effect with NA
   dplyr::mutate(max_upstream_ais_on_sara_effect = ifelse(max_upstream_ais_on_sara_effect == -Inf, NA, max_upstream_ais_on_sara_effect))
 
@@ -483,46 +488,38 @@ dfo_output_final = dfo_output |>
                                          summed_upstream_ais_effects:max_upstream_ais_on_sara_effect)
   )
 
-# ------- TO ADD ! --------- #
-# Shall we add MaxEnt % of suitable habitat to this equation by multiplying that percentage by the mean AIS -> SARA effect of the upstream AIS species?
-# -------------------------- #
-
-# Attempt to total everything up and then organize rows.
 dfo_output_final = dfo_output_final |>
-  dplyr::mutate(risk_total_in_wb = summed_ais_effects / summed_uncertainties,
-                risk_total_upstream = summed_upstream_ais_effects / summed_upstream_uncertainties) |>
-  dplyr::mutate(risk_total_in_wb = tidyr::replace_na(risk_total_in_wb, 0),
-                risk_total_upstream = tidyr::replace_na(risk_total_upstream, 0)) |>
-  dplyr::mutate(risk_total = risk_total_in_wb + risk_total_upstream) |>
-  dplyr::mutate(action = factor(action, levels = c("Monitoring","Eradication","Monitoring and Prevention"))) |>
-  dplyr::arrange(dplyr::desc(action), dplyr::desc(risk_total))
-
-ggplot(dfo_output_final,aes(risk_total)) + geom_histogram() + facet_wrap( ~ action)
-
-# ------- TO ADD ! --------- #
-# Let's make mean_of_maxent_hab_not_hab NA for rows where there are no species upstream that aren't also present in the wb.
-# -------------------------- #
+  dplyr::mutate(` ` = NA) |>
+  dplyr::select(waterbody, watershed, Common_Name_EN, Population_EN,
+                status,
+                # Subjective valuation columns
+                FN_cultural_significance, expert_opinion_AIS, expert_opinion_SARA, population_importance,
+                # Sum of effects of AIS in waterbody
+                summed_ais_in_wb_effects, summed_in_wb_uncertainties,
+                # Sum of effecs of AIS upstream
+                summed_upstream_ais_effects, summed_upstream_uncertainties,
+                # White space column
+                ` `,
+                everything()
+                )
 
 # Prepare results for Excel file.
 
 # Round some digits and adjust column placement!
 dfo_output_final = dfo_output_final |>
-  dplyr::mutate(dplyr::across(dplyr::where(is.numeric), \(x) round(x,2))) |>
-  dplyr::select(waterbody:mean_of_maxent_hab_not_hab,cultural_significance:max_upstream_ais_on_sara_effect,
-                action,risk_total_in_wb:risk_total)
+  dplyr::mutate(dplyr::across(dplyr::where(is.numeric), \(x) round(x,2)))
 
-# Replace NA / Nulls / weird stuff with "NA"
+# Replace NA / Nulls / weird stuff with "NA" (except for 'White Space' column!)
 dfo_output_final = dfo_output_final |>
-  dplyr::mutate(dplyr::across(c(cultural_significance,ais_sp_and_mean_effect,
-                                mean_uncertainty,max_ais_on_sara_effect,
-                                summed_upstream_ais_effects,summed_upstream_uncertainties,
-                                upstream_ais_sp_mean_effect,mean_upstream_uncertainty,
-                                max_upstream_ais_on_sara_effect), \(x) ifelse(is.na(x) | is.nan(x) | x == "NA - NaN (Uncert. NA)", "NA", x)))
+  dplyr::mutate(dplyr::across(dplyr::everything(), \(x) ifelse(is.na(x) | is.nan(x) | x == "NA - NaN (Uncert. NA)", "NA", x))) |>
+  dplyr::mutate(` ` = NA)
 
 my_wb = openxlsx::createWorkbook()
 openxlsx::addWorksheet(my_wb, "output")
 openxlsx::writeData(my_wb, "output", dfo_output_final)
-openxlsx::setColWidths(my_wb, "output", cols = 1:ncol(dfo_output_final), widths = 30)
+openxlsx::setColWidths(my_wb, "output", cols = 1:ncol(dfo_output_final), widths = 18)
+# Reduce width of certain hand-picked columns that really need not be so wide.
+openxlsx::setColWidths(my_wb, "output", cols = c(1,2,4,6:13), widths = 10)
 openxlsx::addWorksheet(my_wb, "habitat_suitabilities")
 openxlsx::writeData(my_wb, "habitat_suitabilities", hab_suit_df)
 openxlsx::saveWorkbook(my_wb, paste0("output/SARA_prioritization_model_",Sys.Date(),".xlsx"), overwrite = T)
