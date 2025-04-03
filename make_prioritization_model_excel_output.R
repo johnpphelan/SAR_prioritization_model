@@ -401,7 +401,7 @@ ais_effects = dplyr::bind_rows(
 # Separate SARA and AIS species name lists that have more than one element into
 # separate rows.
 dfo_output_long = dfo_output |>
-  tidyr::separate_longer_delim(cols = c(Common_Name_EN), delim = ", ") |>
+  tidyr::separate_longer_delim(cols = c(Common_Name_EN,Population_EN,Scientific_Name), delim = ", ") |>
   tidyr::separate_longer_delim(cols = c(ais_present_names), delim = ", ") |>
   dplyr::mutate(ais_present_names = str_to_title(ais_present_names)) |>
   dplyr::left_join(ais_effects, by = join_by(Common_Name_EN, ais_present_names))
@@ -427,7 +427,7 @@ dfo_output_long = dfo_output_long |>
 # Resummarise by waterbody and SARA species!
 dfo_output = dfo_output_long |>
   dplyr::mutate(ais_sp_in_wb_mean_effect = paste0(ais_present_names, " - ", round(mean_ais_effect,3)," (Uncert. ",uncertainty,")")) |>
-  dplyr::group_by(waterbody, watershed, status, Common_Name_EN, Population_EN, Scientific_Name,
+  dplyr::group_by(waterbody, watershed, Common_Name_EN, Population_EN, Scientific_Name,
                   ais_present_in_wb, number_ais_present, ais_upstream, ais_upstream_number,
                   number_upstream_waterbodies, mean_of_maxent_hab_not_hab, FN_cultural_significance,
                   expert_opinion_AIS,expert_opinion_SARA,population_importance) |>
@@ -464,7 +464,7 @@ dfo_output_long = dfo_output_long |>
 # Resummarise by waterbody and SARA species!
 dfo_output_upstream = dfo_output_long |>
   dplyr::mutate(upstream_ais_sp_mean_effect = paste0(ais_upstream_names, " - ", round(mean_ais_upstream_effect,3)," (Uncert. ",uncertainty,")")) |>
-  dplyr::group_by(waterbody, watershed, status, Common_Name_EN, Population_EN, Scientific_Name,
+  dplyr::group_by(waterbody, watershed, Common_Name_EN, Population_EN, Scientific_Name,
                   ais_present_in_wb, number_ais_present,
                   ais_upstream, ais_upstream_number, ais_present_names,
                   number_upstream_waterbodies, mean_of_maxent_hab_not_hab, FN_cultural_significance,
@@ -491,7 +491,6 @@ dfo_output_final = dfo_output |>
 dfo_output_final = dfo_output_final |>
   dplyr::mutate(` ` = NA) |>
   dplyr::select(waterbody, watershed, Common_Name_EN, Population_EN,
-                status,
                 # Subjective valuation columns
                 FN_cultural_significance, expert_opinion_AIS, expert_opinion_SARA, population_importance,
                 # Sum of effects of AIS in waterbody
@@ -502,6 +501,17 @@ dfo_output_final = dfo_output_final |>
                 ` `,
                 everything()
                 )
+
+
+dfo_output_final = dfo_output_final |>
+  dplyr::mutate(pop_importance = dplyr::case_when(
+    Population_EN == 'Cultus' ~ 1.5,
+    T ~ 1
+  )) |>
+  dplyr::mutate(
+    summed_ais_in_wb_effects = summed_ais_in_wb_effects * pop_importance,
+    summed_upstream_ais_effects = summed_upstream_ais_effects * pop_importance
+  )
 
 # Prepare results for Excel file.
 
