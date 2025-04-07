@@ -398,6 +398,7 @@ ais_effects = dplyr::bind_rows(
                 dplyr::everything()) |>
   tidyr::separate_longer_delim(Common_Name_EN, delim = ", ")
 
+
 # Separate SARA and AIS species name lists that have more than one element into
 # separate rows.
 dfo_output_long = dfo_output |>
@@ -424,13 +425,34 @@ dfo_output_long = dfo_output_long |>
                 expert_opinion_SARA = NA,
                 population_importance = NA)
 
+#####################
+# We are looking for the risk levels from COSEWIC for each of the SARA species
+# get rocky mountain ridged mussel, not western, for matching purposes - change later?
+
+source("scripts/utils/sar_risk_merge.R")
+risk_levels<-get_status()
+
+#remove the Western Ridged Mussel if Rocky Mountain Ridged Mussel is present in risk_levels
+risk_levels<-risk_levels |>
+  filter(!(COSEWIC.common.name == "Western Ridged Mussel" & 
+             "Rocky Mountain Ridged Mussel" %in% COSEWIC.common.name))
+
+# we will match the risk levels to the dfo_output_long common names and the we also need to string detect
+# Population_EN to the risk_levels Legal.population. This will be done similarly to the sar_risk_merge.r script
+
+dfo_output_long <- dfo_output_long |>
+  left_join(risk_levels, by = c("Scientific_Name" = "Scientific.name"), relationship = "many-to-many") |>
+  filter(Scientific_Name == "Gonidea angulata" |
+           str_detect(Legal.population, regex(Population_EN, ignore_case = TRUE))) |>
+  select(-c(COSEWIC.common.name,Legal.population))
+
 # Resummarise by waterbody and SARA species!
 dfo_output = dfo_output_long |>
   dplyr::mutate(ais_sp_in_wb_mean_effect = paste0(ais_present_names, " - ", round(mean_ais_effect,3)," (Uncert. ",uncertainty,")")) |>
   dplyr::group_by(waterbody, watershed, Common_Name_EN, Population_EN, Scientific_Name,
                   ais_present_in_wb, number_ais_present, ais_upstream, ais_upstream_number,
                   number_upstream_waterbodies, mean_of_maxent_hab_not_hab, FN_cultural_significance,
-                  expert_opinion_AIS,expert_opinion_SARA,population_importance) |>
+                  expert_opinion_AIS,expert_opinion_SARA,population_importance, COSEWIC.status) |>
   dplyr::reframe(across(c(ais_present_names,ais_upstream_names,ais_sp_in_wb_mean_effect), \(x) paste0(unique(x), collapse = ', ')),
                  summed_ais_in_wb_effects = sum(mean_ais_effect,na.rm=T),
                  summed_in_wb_uncertainties = sum(uncertainty,na.rm=T),
@@ -438,6 +460,11 @@ dfo_output = dfo_output_long |>
                  max_ais_in_wb_on_sara_effect = max(mean_ais_effect,na.rm=T)) |>
   # Replace -Inf for max AIS on SARA effect with NA
   dplyr::mutate(max_ais_in_wb_on_sara_effect = ifelse(max_ais_in_wb_on_sara_effect == -Inf, NA, max_ais_in_wb_on_sara_effect))
+
+
+
+
+
 
 # ------------------------------------------------------
 # As above, but for AIS upstream!
@@ -461,6 +488,10 @@ dfo_output_long = dfo_output_long |>
   dplyr::ungroup() |>
   tidyr::pivot_wider()
 
+
+
+
+
 # Resummarise by waterbody and SARA species!
 dfo_output_upstream = dfo_output_long |>
   dplyr::mutate(upstream_ais_sp_mean_effect = paste0(ais_upstream_names, " - ", round(mean_ais_upstream_effect,3)," (Uncert. ",uncertainty,")")) |>
@@ -470,7 +501,7 @@ dfo_output_upstream = dfo_output_long |>
                   number_upstream_waterbodies, mean_of_maxent_hab_not_hab, FN_cultural_significance,
                   expert_opinion_AIS, expert_opinion_SARA, population_importance,
                   summed_ais_in_wb_effects, summed_in_wb_uncertainties, ais_sp_in_wb_mean_effect, mean_in_wb_uncertainty,
-                  max_ais_in_wb_on_sara_effect) |>
+                  max_ais_in_wb_on_sara_effect, COSEWIC.status) |>
   dplyr::reframe(across(c(ais_upstream_names,upstream_ais_sp_mean_effect), \(x) paste0(unique(x), collapse = ', ')),
                  summed_upstream_ais_effects = sum(mean_ais_upstream_effect,na.rm=T),
                  summed_upstream_uncertainties = sum(uncertainty,na.rm=T),
@@ -490,7 +521,7 @@ dfo_output_final = dfo_output |>
 
 dfo_output_final = dfo_output_final |>
   dplyr::mutate(` ` = NA) |>
-  dplyr::select(waterbody, watershed, Common_Name_EN, Population_EN,
+  dplyr::select(waterbody, watershed, Common_Name_EN, Population_EN, COSEWIC.status,
                 # Subjective valuation columns
                 FN_cultural_significance, expert_opinion_AIS, expert_opinion_SARA, population_importance,
                 # Sum of effects of AIS in waterbody
@@ -501,17 +532,44 @@ dfo_output_final = dfo_output_final |>
                 ` `,
                 everything()
                 )
+# create factors for all the types of cosewic status - data deficient is 1, not at risk is 0, special concern 1, threatened is 2, endangered is 3.
 
 
-dfo_output_final = dfo_output_final |>
-  dplyr::mutate(pop_importance = dplyr::case_when(
-    Population_EN == 'Cultus' ~ 1.5,
-    T ~ 1
-  )) |>
-  dplyr::mutate(
-    summed_ais_in_wb_effects = summed_ais_in_wb_effects * pop_importance,
-    summed_upstream_ais_effects = summed_upstream_ais_effects * pop_importance
-  )
+# dfo_output_final = dfo_output_final |>
+#   dplyr::mutate(pop_importance = dplyr::case_when(
+#     Population_EN == 'Cultus' ~ 1.5,
+#     T ~ 1
+#   )) |>
+#   dplyr::mutate(
+#     summed_ais_in_wb_effects = summed_ais_in_wb_effects * pop_importance,
+#     summed_upstream_ais_effects = summed_upstream_ais_effects * pop_importance
+#   )
+
+dfo_output_final <- dfo_output_final |>
+  mutate(
+    cosewic_numeric = case_when(
+      COSEWIC.status == "Not at Risk"     ~ 0,
+      COSEWIC.status == "Data Deficient"  ~ 1,
+      COSEWIC.status == "Special Concern" ~ 1,
+      COSEWIC.status == "Threatened"      ~ 2,
+      COSEWIC.status == "Endangered"      ~ 3,
+      TRUE ~ NA_real_
+    ),
+    summed_ais_in_wb_effects = if_else(
+      is.na(summed_ais_in_wb_effects) | summed_ais_in_wb_effects == 0,
+      summed_ais_in_wb_effects,
+      summed_ais_in_wb_effects + cosewic_numeric
+    ),
+    summed_upstream_ais_effects = if_else(
+      is.na(summed_upstream_ais_effects) | summed_upstream_ais_effects == 0,
+      summed_upstream_ais_effects,
+      summed_upstream_ais_effects + cosewic_numeric
+    )
+  ) |>
+  select(-c(cosewic_numeric))
+  
+
+
 
 # Prepare results for Excel file.
 
