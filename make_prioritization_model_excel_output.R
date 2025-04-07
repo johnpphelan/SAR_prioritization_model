@@ -258,27 +258,27 @@ for(i in 1:nrow(dfo_sar_w_ais)){
       # save the raster to a folder, so they can be linked in the excel file
       output_path <- paste0("output/spp_wb_overlap/", dfo_sar_w_ais$waterbody[i], "/",the_species_snake,"_masked_habOrNot.jpeg")
       dir.create(dirname(output_path), recursive = TRUE, showWarnings = FALSE)
-      spp_hab_plot <- ggplot() +
-        geom_spatraster(data = pred_plot) +  # Add raster layer+
-        labs(title = paste0("Waterbody: ", dfo_sar_w_ais$waterbody[i], "\nSpecies: ",ais_spp))+
-        geom_sf(data = the_wb, fill = "transparent", color = "black") +  # Plot waterbodies
-        scale_fill_gradient(low = "lightgreen", high = "lightgreen", na.value = "transparent") +  # Ensure habitat areas are blue
-        theme_minimal()+
-        theme(plot.title = element_text(face = "bold", size = 14))
-
-      #spp_hab_plot
-
-      inset_bc <- ggplot() +
-        geom_sf(data = bc, fill = "lightgray", color = "black") +  # Full BC map
-        geom_sf(data = the_wb, fill = "red", color = "red") +  # Highlight the waterbody
-        theme_void()  # Remove axes and grid
-
-      #inset_grob <- ggplotGrob(inset_bc)
-
-      final_plot <- ggarrange(spp_hab_plot, inset_bc,
-                              ncol = 2, nrow = 1, heights = c(3, 1))
-
-      ggexport(final_plot, filename = output_path, width = 1200, height = 600)
+      # spp_hab_plot <- ggplot() +
+      #   geom_spatraster(data = pred_plot) +  # Add raster layer+
+      #   labs(title = paste0("Waterbody: ", dfo_sar_w_ais$waterbody[i], "\nSpecies: ",ais_spp))+
+      #   geom_sf(data = the_wb, fill = "transparent", color = "black") +  # Plot waterbodies
+      #   scale_fill_gradient(low = "lightgreen", high = "lightgreen", na.value = "transparent") +  # Ensure habitat areas are blue
+      #   theme_minimal()+
+      #   theme(plot.title = element_text(face = "bold", size = 14))
+      # 
+      # #spp_hab_plot
+      # 
+      # inset_bc <- ggplot() +
+      #   geom_sf(data = bc, fill = "lightgray", color = "black") +  # Full BC map
+      #   geom_sf(data = the_wb, fill = "red", color = "red") +  # Highlight the waterbody
+      #   theme_void()  # Remove axes and grid
+      # 
+      # #inset_grob <- ggplotGrob(inset_bc)
+      # 
+      # final_plot <- ggarrange(spp_hab_plot, inset_bc,
+      #                         ncol = 2, nrow = 1, heights = c(3, 1))
+      # 
+      # ggexport(final_plot, filename = output_path, width = 1200, height = 600)
 
       # Count the total number of pixels in the waterbody
       total_pixels <- sum(!is.na(values(the_pred_wb_masked)))
@@ -520,32 +520,6 @@ dfo_output_final = dfo_output |>
                                          summed_upstream_ais_effects:max_upstream_ais_on_sara_effect)
   )
 
-dfo_output_final = dfo_output_final |>
-  dplyr::mutate(` ` = NA) |>
-  dplyr::select(waterbody, watershed, Common_Name_EN, Population_EN, COSEWIC.status,
-                # Subjective valuation columns
-                FN_cultural_significance, expert_opinion_AIS, expert_opinion_SARA, population_importance,
-                # Sum of effects of AIS in waterbody
-                summed_ais_in_wb_effects, summed_in_wb_uncertainties,
-                # Sum of effecs of AIS upstream
-                summed_upstream_ais_effects, summed_upstream_uncertainties,
-                # White space column
-                ` `,
-                everything()
-                )
-# create factors for all the types of cosewic status - data deficient is 1, not at risk is 0, special concern 1, threatened is 2, endangered is 3.
-
-
-# dfo_output_final = dfo_output_final |>
-#   dplyr::mutate(pop_importance = dplyr::case_when(
-#     Population_EN == 'Cultus' ~ 1.5,
-#     T ~ 1
-#   )) |>
-#   dplyr::mutate(
-#     summed_ais_in_wb_effects = summed_ais_in_wb_effects * pop_importance,
-#     summed_upstream_ais_effects = summed_upstream_ais_effects * pop_importance
-#   )
-
 dfo_output_final <- dfo_output_final |>
   mutate(
     cosewic_numeric = case_when(
@@ -566,15 +540,56 @@ dfo_output_final <- dfo_output_final |>
       summed_upstream_ais_effects,
       summed_upstream_ais_effects + cosewic_numeric
     )
-  ) |>
-  select(-c(cosewic_numeric))
+  )
 
 # Add binned versions of our key columns.
 natural_breaks_ais_in_wb = BAMMtools::getJenksBreaks(dfo_output_final$summed_ais_in_wb_effects,k=4)
-natural_breaks_ais_upstream = BAMMtools::getJenksBreaks(dfo_output_final$summed_upstream_ais_effects)
 
-dfo_output_final |>
-  dplyr::mutate(summed_ais_in_wb_effects_b = bin())
+natural_breaks_ais_upstream = BAMMtools::getJenksBreaks(as.numeric(dfo_output_final$summed_upstream_ais_effects), k = 4)
+
+dfo_output_final = dfo_output_final |>
+  dplyr::mutate(summed_ais_in_wb_effects_b = as.numeric(cut(summed_ais_in_wb_effects, natural_breaks_ais_in_wb))) |> 
+  mutate(summed_ais_in_wb_effects_b = replace_na(summed_ais_in_wb_effects_b, 0)) |>
+  dplyr::mutate(summed_ais_upstream_effects_b = as.numeric(cut(as.numeric(summed_upstream_ais_effects), natural_breaks_ais_upstream))) |> 
+  mutate(summed_ais_upstream_effects_b = replace_na(summed_ais_upstream_effects_b, 0))
+
+dfo_output_final = dfo_output_final |> 
+  mutate(final_risk = summed_ais_in_wb_effects_b + summed_ais_upstream_effects_b)
+
+
+dfo_output_final = dfo_output_final |>
+  dplyr::mutate(` ` = NA) |>
+  dplyr::select(waterbody, watershed, Common_Name_EN, Population_EN, COSEWIC.status,
+                # Subjective valuation columns
+                FN_cultural_significance, expert_opinion_AIS, expert_opinion_SARA, population_importance,
+                # Sum of effects of AIS in waterbody
+                summed_ais_in_wb_effects, summed_in_wb_uncertainties,
+                # Sum of effecs of AIS upstream
+                summed_upstream_ais_effects, summed_upstream_uncertainties,
+                # binned values,
+                summed_ais_in_wb_effects_b, summed_ais_upstream_effects_b, final_risk,
+                # White space column
+                ` `,
+                everything()
+                ) 
+
+dfo_output_final = dfo_output_final |>
+  dplyr::arrange(desc(final_risk), desc(cosewic_numeric))
+# create factors for all the types of cosewic status - data deficient is 1, not at risk is 0, special concern 1, threatened is 2, endangered is 3.
+
+
+# dfo_output_final = dfo_output_final |>
+#   dplyr::mutate(pop_importance = dplyr::case_when(
+#     Population_EN == 'Cultus' ~ 1.5,
+#     T ~ 1
+#   )) |>
+#   dplyr::mutate(
+#     summed_ais_in_wb_effects = summed_ais_in_wb_effects * pop_importance,
+#     summed_upstream_ais_effects = summed_upstream_ais_effects * pop_importance
+#   )
+
+
+ 
 # Prepare results for Excel file.
 
 # Round some digits and adjust column placement!
