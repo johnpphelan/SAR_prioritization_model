@@ -20,6 +20,7 @@ library(ecospat)
 library(fwa.connect)
 library(tidyterra)
 library(tidyr)
+library(BAMMtools) # Used to find natural breaks ("jenks")
 
 remake_hab_images = FALSE
 
@@ -434,7 +435,7 @@ risk_levels<-get_status()
 
 #remove the Western Ridged Mussel if Rocky Mountain Ridged Mussel is present in risk_levels
 risk_levels<-risk_levels |>
-  filter(!(COSEWIC.common.name == "Western Ridged Mussel" & 
+  filter(!(COSEWIC.common.name == "Western Ridged Mussel" &
              "Rocky Mountain Ridged Mussel" %in% COSEWIC.common.name))
 
 # we will match the risk levels to the dfo_output_long common names and the we also need to string detect
@@ -567,10 +568,13 @@ dfo_output_final <- dfo_output_final |>
     )
   ) |>
   select(-c(cosewic_numeric))
-  
 
+# Add binned versions of our key columns.
+natural_breaks_ais_in_wb = BAMMtools::getJenksBreaks(dfo_output_final$summed_ais_in_wb_effects,k=4)
+natural_breaks_ais_upstream = BAMMtools::getJenksBreaks(dfo_output_final$summed_upstream_ais_effects)
 
-
+dfo_output_final |>
+  dplyr::mutate(summed_ais_in_wb_effects_b = bin())
 # Prepare results for Excel file.
 
 # Round some digits and adjust column placement!
