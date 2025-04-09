@@ -265,19 +265,19 @@ for(i in 1:nrow(dfo_sar_w_ais)){
       #   scale_fill_gradient(low = "lightgreen", high = "lightgreen", na.value = "transparent") +  # Ensure habitat areas are blue
       #   theme_minimal()+
       #   theme(plot.title = element_text(face = "bold", size = 14))
-      # 
+      #
       # #spp_hab_plot
-      # 
+      #
       # inset_bc <- ggplot() +
       #   geom_sf(data = bc, fill = "lightgray", color = "black") +  # Full BC map
       #   geom_sf(data = the_wb, fill = "red", color = "red") +  # Highlight the waterbody
       #   theme_void()  # Remove axes and grid
-      # 
+      #
       # #inset_grob <- ggplotGrob(inset_bc)
-      # 
+      #
       # final_plot <- ggarrange(spp_hab_plot, inset_bc,
       #                         ncol = 2, nrow = 1, heights = c(3, 1))
-      # 
+      #
       # ggexport(final_plot, filename = output_path, width = 1200, height = 600)
 
       # Count the total number of pixels in the waterbody
@@ -399,7 +399,6 @@ ais_effects = dplyr::bind_rows(
                 dplyr::everything()) |>
   tidyr::separate_longer_delim(Common_Name_EN, delim = ", ")
 
-
 # Separate SARA and AIS species name lists that have more than one element into
 # separate rows.
 dfo_output_long = dfo_output |>
@@ -423,8 +422,7 @@ dfo_output_long = dfo_output_long |>
 dfo_output_long = dfo_output_long |>
   dplyr::mutate(FN_cultural_significance = NA,
                 expert_opinion_AIS = NA,
-                expert_opinion_SARA = NA,
-                population_importance = NA)
+                expert_opinion_SARA = NA)
 
 #####################
 # We are looking for the risk levels from COSEWIC for each of the SARA species
@@ -463,10 +461,6 @@ dfo_output = dfo_output_long |>
   dplyr::mutate(max_ais_in_wb_on_sara_effect = ifelse(max_ais_in_wb_on_sara_effect == -Inf, NA, max_ais_in_wb_on_sara_effect))
 
 
-
-
-
-
 # ------------------------------------------------------
 # As above, but for AIS upstream!
 dfo_output_long = dfo_output |>
@@ -488,10 +482,6 @@ dfo_output_long = dfo_output_long |>
   mutate(mean_ais_upstream_effect = mean(value,na.rm=T)) |>
   dplyr::ungroup() |>
   tidyr::pivot_wider()
-
-
-
-
 
 # Resummarise by waterbody and SARA species!
 dfo_output_upstream = dfo_output_long |>
@@ -520,7 +510,7 @@ dfo_output_final = dfo_output |>
                                          summed_upstream_ais_effects:max_upstream_ais_on_sara_effect)
   )
 
-dfo_output_final <- dfo_output_final |>
+dfo_output_final = dfo_output_final |>
   mutate(
     cosewic_numeric = case_when(
       COSEWIC.status == "Not at Risk"     ~ 0,
@@ -529,33 +519,60 @@ dfo_output_final <- dfo_output_final |>
       COSEWIC.status == "Threatened"      ~ 2,
       COSEWIC.status == "Endangered"      ~ 3,
       TRUE ~ NA_real_
-    ),
-    summed_ais_in_wb_effects = if_else(
-      is.na(summed_ais_in_wb_effects) | summed_ais_in_wb_effects == 0,
-      summed_ais_in_wb_effects,
-      summed_ais_in_wb_effects + cosewic_numeric
-    ),
-    summed_upstream_ais_effects = if_else(
-      is.na(summed_upstream_ais_effects) | summed_upstream_ais_effects == 0,
-      summed_upstream_ais_effects,
-      summed_upstream_ais_effects + cosewic_numeric
-    )
-  )
+    )#,
+    # summed_ais_in_wb_effects = if_else(
+    #   is.na(summed_ais_in_wb_effects) | summed_ais_in_wb_effects == 0,
+    #   summed_ais_in_wb_effects,
+    #   summed_ais_in_wb_effects + cosewic_numeric
+    # ),
+    # summed_upstream_ais_effects = if_else(
+    #   is.na(summed_upstream_ais_effects) | summed_upstream_ais_effects == 0,
+    #   summed_upstream_ais_effects,
+    #   summed_upstream_ais_effects + cosewic_numeric
+    # )
+  ) |>
+  # Multiple COSEWIC status by the max effect of AIS (1) in wb and (2) upstream
+  # Also, downscale the weighting of the upstream effect
+  dplyr::mutate(
+    max_ais_ef_in_wb_on_status = max_ais_in_wb_on_sara_effect + cosewic_numeric,
+    max_ais_ef_upstream_on_status = 0.5 * (max_upstream_ais_on_sara_effect + cosewic_numeric)
+  ) |>
+  dplyr::mutate(max_ais_ef_in_wb_on_status = tidyr::replace_na(max_ais_ef_in_wb_on_status, 0),
+                max_ais_ef_upstream_on_status = tidyr::replace_na(max_ais_ef_upstream_on_status, 0)) #|>
+  # dplyr::mutate(final_risk = max_ais_ef_in_wb_on_status + max_ais_ef_upstream_on_status)
 
 # Add binned versions of our key columns.
-natural_breaks_ais_in_wb = BAMMtools::getJenksBreaks(dfo_output_final$summed_ais_in_wb_effects,k=4)
+# natural_breaks_ais_in_wb = BAMMtools::getJenksBreaks(dfo_output_final$max_ais_ef_in_wb_on_status,k=4)
+# natural_breaks_ais_upstream = BAMMtools::getJenksBreaks(as.numeric(dfo_output_final$max_ais_ef_upstream_on_status), k = 4)
 
-natural_breaks_ais_upstream = BAMMtools::getJenksBreaks(as.numeric(dfo_output_final$summed_upstream_ais_effects), k = 4)
+# If the natural breaks are doubling up on 0, remove the first break so we don't have duplicates!
+# if(natural_breaks_ais_in_wb[2] == 0){
+#   natural_breaks_ais_in_wb = natural_breaks_ais_in_wb[-1]
+# }
+# if(natural_breaks_ais_upstream[2] == 0){
+#   natural_breaks_ais_upstream = natural_breaks_ais_upstream[-1]
+# }
+
+# dfo_output_final = dfo_output_final |>
+#   dplyr::mutate(max_ais_ef_in_wb_on_status_b = as.numeric(cut(max_ais_ef_in_wb_on_status, natural_breaks_ais_in_wb))) |>
+#   mutate(max_ais_ef_in_wb_on_status_b = replace_na(max_ais_ef_in_wb_on_status_b, 0)) |>
+#   dplyr::mutate(max_ais_ef_upstream_on_status_b = as.numeric(cut(as.numeric(max_ais_ef_upstream_on_status), natural_breaks_ais_upstream))) |>
+#   mutate(max_ais_ef_upstream_on_status_b = replace_na(max_ais_ef_upstream_on_status_b, 0))
 
 dfo_output_final = dfo_output_final |>
-  dplyr::mutate(summed_ais_in_wb_effects_b = as.numeric(cut(summed_ais_in_wb_effects, natural_breaks_ais_in_wb))) |> 
-  mutate(summed_ais_in_wb_effects_b = replace_na(summed_ais_in_wb_effects_b, 0)) |>
-  dplyr::mutate(summed_ais_upstream_effects_b = as.numeric(cut(as.numeric(summed_upstream_ais_effects), natural_breaks_ais_upstream))) |> 
-  mutate(summed_ais_upstream_effects_b = replace_na(summed_ais_upstream_effects_b, 0))
+  mutate(final_risk = max_ais_ef_in_wb_on_status + max_ais_ef_upstream_on_status)
 
-dfo_output_final = dfo_output_final |> 
-  mutate(final_risk = summed_ais_in_wb_effects_b + summed_ais_upstream_effects_b)
+# Bin the final risk column
+final_risk_bins = BAMMtools::getJenksBreaks(dfo_output_final$final_risk, k = 4)
 
+dfo_output_final = dfo_output_final |>
+  dplyr::mutate(final_risk_b = as.numeric(cut(final_risk, final_risk_bins))) |>
+  dplyr::mutate(final_risk_b = factor(final_risk_b,
+                                      levels = c(1:3),
+                                      labels = c(
+                                        paste0("Low (<",final_risk_bins[2],")"),
+                                        paste0("Moderate (",final_risk_bins[2],"-",final_risk_bins[3],")"),
+                                        paste0("High (",final_risk_bins[3],"+)"))))
 
 dfo_output_final = dfo_output_final |>
   dplyr::mutate(` ` = NA) |>
@@ -563,20 +580,37 @@ dfo_output_final = dfo_output_final |>
                 # Subjective valuation columns
                 FN_cultural_significance, expert_opinion_AIS, expert_opinion_SARA, population_importance,
                 # Sum of effects of AIS in waterbody
-                summed_ais_in_wb_effects, summed_in_wb_uncertainties,
+                max_ais_ef_in_wb_on_status,
+                #summed_ais_in_wb_effects, summed_in_wb_uncertainties,
                 # Sum of effecs of AIS upstream
-                summed_upstream_ais_effects, summed_upstream_uncertainties,
+                max_ais_ef_upstream_on_status,
+                #summed_upstream_ais_effects, summed_upstream_uncertainties,
                 # binned values,
-                summed_ais_in_wb_effects_b, summed_ais_upstream_effects_b, final_risk,
+                # summed_ais_in_wb_effects_b, summed_ais_upstream_effects_b, final_risk,
+                final_risk, final_risk_b,
                 # White space column
                 ` `,
                 everything()
-                ) 
+                )
 
 dfo_output_final = dfo_output_final |>
   dplyr::arrange(desc(final_risk), desc(cosewic_numeric))
 # create factors for all the types of cosewic status - data deficient is 1, not at risk is 0, special concern 1, threatened is 2, endangered is 3.
 
+# # Convert binned ais effect variables to 'low','med','high'
+# dfo_output_final = dfo_output_final |>
+#   dplyr::mutate(summed_ais_in_wb_effects_b = dplyr::case_when(
+#     summed_ais_in_wb_effects_b == 1 ~ "Low (1)",
+#     summed_ais_in_wb_effects_b == 2 ~ "Moderate (2)",
+#     summed_ais_in_wb_effects_b == 3 ~ "High (3)",
+#     T ~ "None"
+#   )) |>
+#   dplyr::mutate(summed_ais_upstream_effects_b = dplyr::case_when(
+#     summed_ais_upstream_effects_b == 1 ~ "Low (1)",
+#     summed_ais_upstream_effects_b == 2 ~ "Moderate (2)",
+#     summed_ais_upstream_effects_b == 3 ~ "High (3)",
+#     T ~ "None"
+#   ))
 
 # dfo_output_final = dfo_output_final |>
 #   dplyr::mutate(pop_importance = dplyr::case_when(
@@ -588,8 +622,6 @@ dfo_output_final = dfo_output_final |>
 #     summed_upstream_ais_effects = summed_upstream_ais_effects * pop_importance
 #   )
 
-
- 
 # Prepare results for Excel file.
 
 # Round some digits and adjust column placement!
