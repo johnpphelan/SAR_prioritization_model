@@ -33,6 +33,9 @@ remake_hab_images = FALSE
 source("scripts/utils/load_data.R")
 source("scripts/utils/prep_predictor_data_f.R")
 
+
+
+
 # SAR stuff
 if(!file.exists("data/dfo_sar_w_wb_no_dups.rds")){
 
@@ -451,7 +454,7 @@ dfo_output = dfo_output_long |>
   dplyr::group_by(waterbody, watershed, Common_Name_EN, Population_EN, Scientific_Name,
                   ais_present_in_wb, number_ais_present, ais_upstream, ais_upstream_number,
                   number_upstream_waterbodies, mean_of_maxent_hab_not_hab, FN_cultural_significance,
-                  expert_opinion_AIS,expert_opinion_SARA,population_importance, COSEWIC.status) |>
+                  expert_opinion_AIS,expert_opinion_SARA, COSEWIC.status) |>
   dplyr::reframe(across(c(ais_present_names,ais_upstream_names,ais_sp_in_wb_mean_effect), \(x) paste0(unique(x), collapse = ', ')),
                  summed_ais_in_wb_effects = sum(mean_ais_effect,na.rm=T),
                  summed_in_wb_uncertainties = sum(uncertainty,na.rm=T),
@@ -490,7 +493,7 @@ dfo_output_upstream = dfo_output_long |>
                   ais_present_in_wb, number_ais_present,
                   ais_upstream, ais_upstream_number, ais_present_names,
                   number_upstream_waterbodies, mean_of_maxent_hab_not_hab, FN_cultural_significance,
-                  expert_opinion_AIS, expert_opinion_SARA, population_importance,
+                  expert_opinion_AIS, expert_opinion_SARA,
                   summed_ais_in_wb_effects, summed_in_wb_uncertainties, ais_sp_in_wb_mean_effect, mean_in_wb_uncertainty,
                   max_ais_in_wb_on_sara_effect, COSEWIC.status) |>
   dplyr::reframe(across(c(ais_upstream_names,upstream_ais_sp_mean_effect), \(x) paste0(unique(x), collapse = ', ')),
@@ -561,6 +564,10 @@ dfo_output_final = dfo_output_final |>
 
 dfo_output_final = dfo_output_final |>
   mutate(final_risk = max_ais_ef_in_wb_on_status + max_ais_ef_upstream_on_status)
+# dfo_output_final = dfo_output_final |>
+#   mutate(final_risk = max_ais_ef_in_wb_on_status + max_ais_ef_upstream_on_status)
+
+
 
 # Bin the final risk column
 final_risk_bins = BAMMtools::getJenksBreaks(dfo_output_final$final_risk, k = 4)
@@ -578,7 +585,7 @@ dfo_output_final = dfo_output_final |>
   dplyr::mutate(` ` = NA) |>
   dplyr::select(waterbody, watershed, Common_Name_EN, Population_EN, COSEWIC.status,
                 # Subjective valuation columns
-                FN_cultural_significance, expert_opinion_AIS, expert_opinion_SARA, population_importance,
+                FN_cultural_significance, expert_opinion_AIS, expert_opinion_SARA,
                 # Sum of effects of AIS in waterbody
                 max_ais_ef_in_wb_on_status,
                 #summed_ais_in_wb_effects, summed_in_wb_uncertainties,
