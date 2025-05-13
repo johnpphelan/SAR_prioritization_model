@@ -34,7 +34,6 @@ remake_hab_images = FALSE
 source("scripts/utils/load_data.R")
 source("scripts/utils/prep_predictor_data_f.R")
 
-<<<<<<< HEAD
 # Try making some plots!
 dfo_sar_4326 = sf::st_transform(dfo_sar, 4326)
 
@@ -68,10 +67,7 @@ inset_map = ggplot() +
   geom_sf(data = bcmaps::bc_bound())
 
 all_my_maps + inset_map
-=======
 
-
->>>>>>> 2139a1c28684d40782d5ce954dfdf49627803a27
 
 # SAR stuff
 if(!file.exists("data/dfo_sar_w_wb_no_dups.rds")){
