@@ -21,6 +21,7 @@ library(fwa.connect)
 library(tidyterra)
 library(tidyr)
 library(BAMMtools) # Used to find natural breaks ("jenks")
+library(basemaps)
 
 remake_hab_images = FALSE
 
@@ -32,6 +33,40 @@ remake_hab_images = FALSE
 # Get / set file paths
 source("scripts/utils/load_data.R")
 source("scripts/utils/prep_predictor_data_f.R")
+
+# Try making some plots!
+dfo_sar_4326 = sf::st_transform(dfo_sar, 4326)
+
+species_maps = dfo_sar_4326 |>
+  dplyr::group_by(Common_Name_EN) |>
+  dplyr::group_split() |>
+  purrr::map( ~ {
+
+    buffered_bbox = sf::st_bbox(.x) |>
+      sf::st_as_sfc() |>
+      sf::st_as_sf() |>
+      sf::st_transform(3005) |>
+      sf::st_buffer(dist = 500)
+
+    the_ocean_bm = basemaps::basemap_terra(ext = buffered_bbox,
+                                           map_service = "esri",
+                                           map_type = "world_street_map")
+
+    ggplot() +
+      tidyterra::geom_spatraster_rgb(data = the_ocean_bm) +
+      geom_sf(data = .x,
+              aes(fill = Common_Name_EN), alpha = 0.5) +
+      ggthemes::theme_map() +
+      theme(legend.position = 'none')
+
+  })
+
+all_my_maps = Reduce(`+`, species_maps)
+
+inset_map = ggplot() +
+  geom_sf(data = bcmaps::bc_bound())
+
+all_my_maps + inset_map
 
 # SAR stuff
 if(!file.exists("data/dfo_sar_w_wb_no_dups.rds")){
