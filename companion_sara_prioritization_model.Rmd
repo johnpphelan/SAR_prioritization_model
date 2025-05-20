@@ -14,6 +14,8 @@ knitr::opts_chunk$set(echo = F, message = F, warning = F)
 
 library(readxl)
 library(tidyverse)
+library(leaflet)
+library(leafpop)
 ```
 
 ## SARA Prioritization Model
@@ -24,9 +26,8 @@ This model is based on spatial overlap of polygons maintained by the
 Department of Fisheries and Oceans (DFO) that represent known
 occurrences of SARA-listed species (or SAR, i.e., species-at-risk), and
 occurrence records of aquatic invasive species (AIS) in British
-Columbia.
-
--   Need to mention the Freshwater Atlas
+Columbia. The overlap is found based on named rivers, streams, and lakes
+within the Freshwater Atlas.
 
 -   Risk assessments ?? Alert sheets?
 
@@ -120,9 +121,11 @@ to negatively affect SARA fish and SARA invertebrates through:
 
 -   disease/parasite transmission
 
--   The uncertainty of the strength of these effects was also assessed.
+The uncertainty of the strength of these effects was also assessed.
 
-    **Maybe mention that we took the average of those columns.**
+```         
+**Maybe mention that we took the average of those columns.**
+```
 
 For each waterbody with SAR / AIS overlap, or SAR present with AIS
 present in the nearby upstream, the most severe potential effect of AIS
@@ -204,16 +207,22 @@ rel_ecos = bcmaps::ecosections() |>
 # spatial overlap
 joined_ecos_scores <- sf::st_join(rel_ecos, rel_named_wbs_w_results, join = sf::st_intersects, left = TRUE)
 
-risk_polys <- joined_ecos_scores |> 
-  mutate(final_risk_b = as.numeric(final_risk_b)) |> 
-  group_by(ECOSECTION_NAME) |> 
-  summarise(sum_final_risk_b = sum(final_risk_b, na.rm = TRUE), .groups = "drop")  
+risk_polys <- joined_ecos_scores |>
+  mutate(final_risk_b = as.numeric(final_risk_b)) |>
+  group_by(ECOSECTION_NAME) |>
+  summarise(
+    sum_final_risk_b = sum(final_risk_b, na.rm = TRUE),
+    Common_Names = paste(unique(na.omit(Common_Name_EN)), collapse = ", "),
+    Populations = paste(unique(na.omit(Population_EN)), collapse = ", ")
+  ) |>
+  mutate(sum_final_risk_b = ifelse(is.na(sum_final_risk_b), 0, sum_final_risk_b)) |>
+  ungroup()
   
-ggplot()+ geom_sf(data = risk_polys, aes(fill = sum_final_risk_b))
+
 
 # rel_ecos = rmapshaper::ms_simplify()
-ggplot() +
-  geom_sf(data = bcmaps::ecosections())
+# ggplot() +
+#   geom_sf(data = bcmaps::ecosections())
 
 ggplot() + 
   geom_sf(data = sf::st_as_sf(bc), col = 'lightgrey', fill = 'transparent') + 
@@ -227,10 +236,53 @@ ggplot() +
   ggspatial::annotation_scale()
 
 # Maybe make the above map a leaflet map? Or add that?
+
+
+
+
+leaflet::leaflet(risk_polys) |> 
+  leaflet::addTiles() |> 
+  leaflet::addPolygons(
+    fillColor = ~leaflet::colorNumeric("viridis", sum_final_risk_b)(sum_final_risk_b),
+    color = "black",
+    weight = 1,
+    opacity = 1,
+    fillOpacity = 0.7,
+    popup = leafpop::popupTable(risk_polys, 
+                                zcol = c("Common_Names", "Populations", "sum_final_risk_b")),
+    highlightOptions = leaflet::highlightOptions(
+      weight = 2,
+      color = "#666",
+      fillOpacity = 0.7,
+      bringToFront = TRUE
+    )
+  ) |> 
+  leaflet::addLegend(
+    pal = leaflet::colorNumeric("viridis", risk_polys$sum_final_risk_b),
+    values = risk_polys$sum_final_risk_b,
+    position = "bottomright"
+  )
+
 ```
 
 ## Future Work
 
 ### MaxEnt Assessment of Habitat Suitability
 
+Modelling habitat suitability for AIS across the watersheds, gives an
+indication as to how suitable a particular waterbody would be for an
+AIS. It takes into account a number of environmental variables, such as
+temperature and calcium concentration. The output may be combined with
+current risk score, for AIS upstream of a SARA listed species. The
+usability is uncertain as to how the output of MaxEnt would be
+incorporated in the current modelling process, with there being a
+"suitable/unsuitable" binary distinction in habitat suitability.
+
 ### First Nations Cultural Significance and Priority
+
+The cultural significance of a SARA listed species should be
+incorporated to ensure that these species in waterbodies are noted to be
+offered further protection, or maybe suitable for more detailed analysis
+and action. The inclusion of knowledge from first nations would make a
+valuable contribution to the assessment of the SARA listed species in
+the waterbodies.
