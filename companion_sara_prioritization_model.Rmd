@@ -26,6 +26,10 @@ occurrences of SARA-listed species (or SAR, i.e., species-at-risk), and
 occurrence records of aquatic invasive species (AIS) in British
 Columbia.
 
+-   Need to mention the Freshwater Atlas
+
+-   Risk assessments ?? Alert sheets?
+
 These two spatial layers are trimmed to just the area inside the Fraser
 and Columbia River Basins (the purple area in the figure below).
 
@@ -53,6 +57,9 @@ of AIS in the waterbody immediately upstream. Note that if the upstream
 waterbody was a river or stream and there was one or more lakes in
 physical proximity, the lake(s) was/were also included in the scope of
 this 'upstream waterbody' analysis.
+
+-   Add occurrence dots for AIS? Maybe also polygon(s) for DFO SARA in
+    WB?
 
 ```{r upstream_example}
 eg_wb = named_wbs[named_wbs$waterbody == 'Alouette River',]
@@ -95,16 +102,27 @@ ggplot() +
   theme(legend.position = 'left')
 ```
 
-### Strength of Potential Negative Effect of AIS on SAR
+### Strength of Potential Negative Effects of AIS on SAR
 
 Species-specific interactions between AIS and SAR were collated from
 available risk assessments and AIS 'Alert Sheets' (informative bulletins
 prepared by professional biologists to inform the public of aquatic
 invasive species in British Columbia). Each AIS was rated on its ability
-to negatively affect SARA fish and SARA invertebrates through: -
-predation - competition - habitat modification - nutrient depletion -
-disease/parasite transmission The uncertainty of the strength of these
-effects was also assessed.
+to negatively affect SARA fish and SARA invertebrates through:
+
+-   predation
+
+-   competition
+
+-   habitat modification
+
+-   nutrient depletion
+
+-   disease/parasite transmission
+
+-   The uncertainty of the strength of these effects was also assessed.
+
+    **Maybe mention that we took the average of those columns.**
 
 For each waterbody with SAR / AIS overlap, or SAR present with AIS
 present in the nearby upstream, the most severe potential effect of AIS
@@ -177,6 +195,18 @@ rel_named_wbs_w_results = rel_named_wbs |>
 
 bbox_of_results = sf::st_bbox(frascol)
 
+rel_ecos = bcmaps::ecosections() |> 
+  sf::st_transform(4326) |> 
+  sf::st_filter(frascol)
+  
+# Try to find average or sum of final risk bins, display either as polygons or raster?
+# rel_ecos |> 
+  # sf::st_join(rel_named_wbs_w_results)
+
+# rel_ecos = rmapshaper::ms_simplify()
+ggplot() +
+  geom_sf(data = bcmaps::ecosections())
+
 ggplot() + 
   geom_sf(data = bc, col = 'lightgrey', fill = 'transparent') + 
   geom_sf(data = frascol, col = 'black') +
@@ -185,5 +215,14 @@ ggplot() +
            ylim = bbox_of_results[c(2,4)]) + 
   ggthemes::theme_map() + 
   theme(legend.position = 'left') + 
-  labs(fill = "Risk Estimate", col = "Risk Estimate")
+  labs(fill = "Risk Estimate", col = "Risk Estimate") + 
+  ggspatial::annotation_scale()
+
+# Maybe make the above map a leaflet map? Or add that?
 ```
+
+## Future Work
+
+### MaxEnt Assessment of Habitat Suitability
+
+### First Nations Cultural Significance and Priority
