@@ -40,7 +40,7 @@ source("scripts/utils/prep_predictor_data_f.R")
 
 ```{r show_fraser_and_columbia_basins}
 ggplot() + 
-  geom_sf(data = bc, fill = 'lightgrey') + 
+  geom_sf(data = sf::st_as_sf(bc), fill = 'lightgrey') + 
   geom_sf(data = frascol, fill = 'purple') + 
   ggthemes::theme_map() + 
   ggspatial::annotation_scale()
@@ -80,9 +80,9 @@ upstream_named_wbs = named_wbs |>
   # sf::st_drop_geometry()
 
 # Snag connecting streams. We don't actually do this in the model, but this might be necessary for illustrative purposes.
-fwa_pattern = bcdata:::CQL(paste0("FWA_WATERSHED_CODE like '",row_fwa_prefix,"%'"))
+fwa_pattern = bcdata::CQL(paste0("FWA_WATERSHED_CODE like '",row_fwa_prefix,"%'"))
 
-rel_streams = bcdc_query_geodata("freshwater-atlas-stream-network") |> 
+rel_streams = bcdata::bcdc_query_geodata("freshwater-atlas-stream-network") |> 
   filter(fwa_pattern) |> 
   collect() |> 
   dplyr::summarise() |> 
@@ -200,15 +200,23 @@ rel_ecos = bcmaps::ecosections() |>
   sf::st_filter(frascol)
   
 # Try to find average or sum of final risk bins, display either as polygons or raster?
-# rel_ecos |> 
-  # sf::st_join(rel_named_wbs_w_results)
+# for each ecosection, find the sum of the final risk bin where there is 
+# spatial overlap
+joined_ecos_scores <- sf::st_join(rel_ecos, rel_named_wbs_w_results, join = sf::st_intersects, left = TRUE)
+
+risk_polys <- joined_ecos_scores |> 
+  mutate(final_risk_b = as.numeric(final_risk_b)) |> 
+  group_by(ECOSECTION_NAME) |> 
+  summarise(sum_final_risk_b = sum(final_risk_b, na.rm = TRUE), .groups = "drop")  
+  
+ggplot()+ geom_sf(data = risk_polys, aes(fill = sum_final_risk_b))
 
 # rel_ecos = rmapshaper::ms_simplify()
 ggplot() +
   geom_sf(data = bcmaps::ecosections())
 
 ggplot() + 
-  geom_sf(data = bc, col = 'lightgrey', fill = 'transparent') + 
+  geom_sf(data = sf::st_as_sf(bc), col = 'lightgrey', fill = 'transparent') + 
   geom_sf(data = frascol, col = 'black') +
   geom_sf(data = rel_named_wbs_w_results, aes(fill = final_risk_b, col = final_risk_b)) + 
   coord_sf(xlim = bbox_of_results[c(1,3)],
