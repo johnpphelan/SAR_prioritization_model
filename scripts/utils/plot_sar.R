@@ -49,6 +49,9 @@ species_maps = dfo_sar_4326 |>
                                            map_service = "carto",
                                            map_type = "light")
     
+    
+    ## arrow for the small polygon - calculate the size for RMRM?
+    # and add a label geom_sf_label()
     ggplot() +
       tidyterra::geom_spatraster_rgb(data = the_ocean_bm) +
       geom_sf(data = .x,
