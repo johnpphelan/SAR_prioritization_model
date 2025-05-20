@@ -1,0 +1,189 @@
+---
+title: "Companion SARA Prioritization Model Document"
+author: "Chris Madsen & John Phelan"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, message = F, warning = F)
+
+library(readxl)
+library(tidyverse)
+```
+
+## SARA Prioritization Model
+
+### Datasets
+
+This model is based on spatial overlap of polygons maintained by the
+Department of Fisheries and Oceans (DFO) that represent known
+occurrences of SARA-listed species (or SAR, i.e., species-at-risk), and
+occurrence records of aquatic invasive species (AIS) in British
+Columbia.
+
+These two spatial layers are trimmed to just the area inside the Fraser
+and Columbia River Basins (the purple area in the figure below).
+
+```{r run_data_prep_scripts}
+source("scripts/utils/load_data.R")
+source("scripts/utils/prep_predictor_data_f.R")
+```
+
+```{r show_fraser_and_columbia_basins}
+ggplot() + 
+  geom_sf(data = bc, fill = 'lightgrey') + 
+  geom_sf(data = frascol, fill = 'purple') + 
+  ggthemes::theme_map() + 
+  ggspatial::annotation_scale()
+```
+
+## Model Process
+
+### SAR-AIS overlap
+
+Both SAR and AIS are spatially joined to named waterbodies (i.e. lakes,
+rivers and streams) to identify areas of overlap. In addition, each
+instance of overlap between SAR and AIS is also tested for the presence
+of AIS in the waterbody immediately upstream. Note that if the upstream
+waterbody was a river or stream and there was one or more lakes in
+physical proximity, the lake(s) was/were also included in the scope of
+this 'upstream waterbody' analysis.
+
+```{r upstream_example}
+eg_wb = named_wbs[named_wbs$waterbody == 'Alouette River',]
+row_name = "Alouette River"
+row_fwa = eg_wb$FWA_WATERSHED_CODE
+row_fwa_prefix = str_remove(row_fwa, "000000.*")
+row_watershed = eg_wb$watershed
+eg_wb = eg_wb |> 
+  dplyr::mutate(id = "Alouette River")
+# Filter named waterbodies for just those upstream of the_wb.
+# Then, do AIS overlap with just those upstream wb(s).
+upstream_named_wbs = named_wbs |>
+  dplyr::filter(str_detect(FWA_WATERSHED_CODE,paste0(row_fwa_prefix))) |>
+  dplyr::filter(FWA_WATERSHED_CODE != row_fwa) |>
+  dplyr::filter(str_detect(FWA_WATERSHED_CODE,paste0(row_fwa_prefix,"(?!000000)"))) |>
+  dplyr::filter(str_detect(FWA_WATERSHED_CODE,paste0(row_fwa_prefix,"[0-9]{6}-000000"))) |> 
+  dplyr::mutate(id = "Lakes/Rivers \none level \nupstream")
+  # sf::st_drop_geometry()
+
+# Snag connecting streams. We don't actually do this in the model, but this might be necessary for illustrative purposes.
+fwa_pattern = bcdata:::CQL(paste0("FWA_WATERSHED_CODE like '",row_fwa_prefix,"%'"))
+
+rel_streams = bcdc_query_geodata("freshwater-atlas-stream-network") |> 
+  filter(fwa_pattern) |> 
+  collect() |> 
+  dplyr::summarise() |> 
+  dplyr::mutate(id = "Unnamed connecting streams")
+
+ggplot() + 
+  geom_sf(data = rel_streams, aes(col = id)) +
+  geom_sf(data = eg_wb, aes(fill = id, col = id)) + 
+  geom_sf(data = upstream_named_wbs, aes(fill = id, col = id)) + 
+  scale_color_manual(values = c("Alouette River" = "purple",
+                                "Lakes/Rivers \none level \nupstream" = "darkblue",
+                                "Unnamed connecting streams" = "lightblue")) + 
+  guides(fill = "none") + 
+  labs(color = "Waterbody") + 
+  ggspatial::annotation_scale(pad_x = unit(7.5,'cm')) +
+  ggthemes::theme_map() +
+  theme(legend.position = 'left')
+```
+
+### Strength of Potential Negative Effect of AIS on SAR
+
+Species-specific interactions between AIS and SAR were collated from
+available risk assessments and AIS 'Alert Sheets' (informative bulletins
+prepared by professional biologists to inform the public of aquatic
+invasive species in British Columbia). Each AIS was rated on its ability
+to negatively affect SARA fish and SARA invertebrates through: -
+predation - competition - habitat modification - nutrient depletion -
+disease/parasite transmission The uncertainty of the strength of these
+effects was also assessed.
+
+For each waterbody with SAR / AIS overlap, or SAR present with AIS
+present in the nearby upstream, the most severe potential effect of AIS
+on SAR was identified to represent the overall risk to SAR in that
+waterbody.
+
+### COSEWIC status
+
+The COSEWIC status of each SAR also contributed to the overall risk at
+the waterbody level: a status of "Not at Risk" did not raise the overall
+risk estimate, a status of either "Data Deficient" or "Special Concern"
+added 1 to the risk estimate, a status of "Threatened" added 2 to the
+risk estimate, and a status of "Endangered" added 3 to the risk
+estimate.
+
+### Reduction for AIS upstream
+
+The maximum potential negative effect score and COSEWIC status score of
+AIS that were upstream of a given waterbody with SAR present was reduced
+by half. This was intended to attenuate the estimated risk when AIS were
+less proximal.
+
+## Final Equation
+
+$$
+Risk_{WB} = (E_{WB} + S_{WB}) + \frac{(E_{U} + S_{U})}{2} 
+$$
+
+Where $Risk_{WB}$ is the overall estimate risk rating of a waterbody,
+$E$ is the maximum potential negative effect of the AIS present in the
+waterbody on the SAR, and $S$ is the COSEWIC status of the SAR. The
+index $_{WB}$ refers to the waterbody in question, and the index $_{U}$
+refers to the named rivers or lakes that are one 'step' upstream from
+the waterbody in question, according to the Freshwater Atlas.
+
+```{r map_of_the_province_with_ratings_raster}
+# Read in results excel file.
+result_files = list.files(path = 'output/', 
+                          pattern = '^SARA.*.xlsx$',
+                          full.names = T)
+# Figure out which file is the most recent.
+file_to_read = result_files |> 
+  lapply(\(x){
+    data.frame(filename = x, c_time = file.info(x)$ctime)
+  }) |> 
+  dplyr::bind_rows() |> 
+  dplyr::arrange(dplyr::desc(c_time)) |> 
+  dplyr::slice(1)
+
+results = openxlsx::read.xlsx(file_to_read$filename)
+
+results = results |> 
+  dplyr::select(waterbody, watershed, Common_Name_EN, Population_EN,
+                final_risk, final_risk_b)
+
+# Make sure we don't have NA values for lowest final risk bin.
+results = results |> 
+  dplyr::mutate(final_risk_b = tidyr::replace_na(final_risk_b, "1"))
+
+rel_named_wbs = named_wbs |> 
+  dplyr::filter(waterbody %in% results$waterbody)
+  
+rel_named_wbs = rel_named_wbs |> 
+  dplyr::group_by(waterbody, watershed) |> 
+  dplyr::summarise() |> 
+  dplyr::ungroup()
+
+rel_named_wbs_w_results = rel_named_wbs |> 
+  dplyr::inner_join(results)
+
+bbox_of_results = sf::st_bbox(frascol)
+
+ggplot() + 
+  geom_sf(data = bc, col = 'lightgrey', fill = 'transparent') + 
+  geom_sf(data = frascol, col = 'black') +
+  geom_sf(data = rel_named_wbs_w_results, aes(fill = final_risk_b, col = final_risk_b)) + 
+  coord_sf(xlim = bbox_of_results[c(1,3)],
+           ylim = bbox_of_results[c(2,4)]) + 
+  ggthemes::theme_map() + 
+  theme(legend.position = 'left') + 
+  labs(fill = "Risk Estimate", col = "Risk Estimate")
+```
