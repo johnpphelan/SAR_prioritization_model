@@ -8,3 +8,5 @@ output/*
 output/**
 notes/**
 images
+temp.html
+temp_files
