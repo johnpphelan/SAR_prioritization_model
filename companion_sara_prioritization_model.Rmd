@@ -9,8 +9,22 @@ editor_options:
     wrap: 72
 ---
 
-```{r setup, include=FALSE}
+```{r setup, echo = F, include=FALSE, results = 'asis', message = F, warning = F}
 knitr::opts_chunk$set(echo = F, message = F, warning = F)
+
+cat('
+<style>
+.sar_sp {
+  display: flex;
+  overflow-x: auto;
+  gap: 20px;
+  padding: 10px;
+}
+.sar_sp > div {
+  flex: 0 0 auto;
+}
+</style>
+')
 
 library(readxl)
 library(tidyverse)
@@ -19,6 +33,7 @@ library(leafpop)
 library(sf)
 library(RColorBrewer)
 library(patchwork)
+library(grid)
 
 ```
 
@@ -43,72 +58,79 @@ ggplot() +
   ggspatial::annotation_scale()
 ```
 
-### Datasets
+### Datasets {.tabset}
 
 This model is based on spatial overlap of polygons maintained by the
 Department of Fisheries and Oceans (DFO) that represent known
 occurrences of SARA-listed species (or SAR, i.e., species-at-risk), and occurrence records of aquatic invasive species (AIS) in British
-Columbia. The overlap is found based on named rivers, streams, and lakes within the BC Freshwater Atlas. The locations of the SAR are represented by polygons (and points for hte Sockeye salmon in Cultus Lake).
+Columbia. The overlap is found based on named rivers, streams, and lakes within the BC Freshwater Atlas. The locations of the SAR are represented by polygons (and points for the Sockeye salmon in Cultus Lake).
 
-#### SARA Locations {.tabset}
-```{r plot_sar_locations}
+Risk assessments and AIS Alert Sheets provide detail on potential impacts of AIS on SAR, and the uncertainty associated with these impacts.
 
-species_list <- c("Cultus Pygmy Sculpin", "Westslope Cutthroat Trout", 
-                  "Bull Trout", "Rocky Mountain Ridged Mussel", 
-                  "Sockeye Salmon")
-my_palette <- brewer.pal(n = 5, name = "Dark2")
-species_colours <- setNames(my_palette, species_list)
+#### SARA Locations 
+```{r plot_sar_locations, results='asis', echo=FALSE}
 
-# Try making some plots!
-dfo_sar_4326 = sf::st_transform(dfo_sar, 4326)
+# species_list <- c("Cultus Pygmy Sculpin", "Westslope Cutthroat Trout", 
+#                   "Bull Trout", "Rocky Mountain Ridged Mussel", 
+#                   "Sockeye Salmon")
+# my_palette <- brewer.pal(n = 5, name = "Dark2")
+# species_colours <- setNames(my_palette, species_list)
+# 
+# # Try making some plots!
+# dfo_sar_4326 = sf::st_transform(dfo_sar, 4326)
+# 
+# dfo_extent = sf::st_bbox(dfo_sar_4326) |>
+#   sf::st_as_sfc() |>
+#   sf::st_sf() |>
+#   sf::st_set_crs(4326)
+# 
+# species_maps = dfo_sar_4326 |>
+#   dplyr::group_by(Common_Name_EN) |>
+#   dplyr::group_split() |>
+#   purrr::map( ~ {
+# 
+#     buffered_bbox = sf::st_bbox(.x) |>
+#       sf::st_as_sfc() |>
+#       sf::st_as_sf() |>
+#       sf::st_transform(3005) |>
+#       sf::st_buffer(dist = 500)
+# 
+#     the_ocean_bm =  suppressMessages(suppressWarnings(basemaps::basemap_terra(ext = buffered_bbox,
+#                                            map_service = "osm",
+#                                            map_type = "streets")))
+# 
+#     ggplot() +
+#       tidyterra::geom_spatraster_rgb(data = the_ocean_bm) +
+#       geom_sf(data = sf::st_simplify(.x),
+#               aes(fill = Common_Name_EN), alpha = 0.8, linewidth = 0.8) +
+#       scale_fill_manual(values = species_colours) +  # 👈 Custom fill colours
+#       ggtitle(case_when(
+#         .x$Common_Name_EN[1] == "Cultus Pygmy Sculpin" ~ "Coastrange Sculpin - Cultus",
+#         .x$Common_Name_EN[1] == "Westslope Cutthroat Trout" ~ "Westslope Cutthroat Trout",
+#         .x$Common_Name_EN[1] == "Bull Trout" ~ "Bull Trout - South Coast",
+#         .x$Common_Name_EN[1] == "Rocky Mountain Ridged Mussel" ~ "Rocky Mountain Ridged Mussel",
+#         .x$Common_Name_EN[1] == "Sockeye Salmon" ~ "Sockeye Salmon - Cultus",
+#         TRUE ~ .x$Common_Name_EN[1]
+#       )) +
+#       ggthemes::theme_map() +
+#       theme(legend.position = 'none',
+#             plot.title = element_text(hjust = 0.5, face = "bold"))
+#   })
+# 
+# all_my_maps = Reduce(`+`, species_maps)
+# 
+#paths <- paste0("figures/species_map_", seq_along(species_maps), ".png")
+# 
+# walk2(species_maps, paths, ~ggsave(filename = .y, plot = .x, width = 5, height = 4))
 
-dfo_extent = sf::st_bbox(dfo_sar_4326) |>
-  sf::st_as_sfc() |>
-  sf::st_sf() |>
-  sf::st_set_crs(4326)
 
-species_maps = dfo_sar_4326 |>
-  dplyr::group_by(Common_Name_EN) |>
-  dplyr::group_split() |>
-  purrr::map( ~ {
+paths <- paste0("figures/species_map_", 1:5, ".png")
 
-    buffered_bbox = sf::st_bbox(.x) |>
-      sf::st_as_sfc() |>
-      sf::st_as_sf() |>
-      sf::st_transform(3005) |>
-      sf::st_buffer(dist = 500)
-
-    the_ocean_bm = basemaps::basemap_terra(ext = buffered_bbox,
-                                           map_service = "osm",
-                                           map_type = "streets")
-
-    ggplot() +
-      tidyterra::geom_spatraster_rgb(data = the_ocean_bm) +
-      geom_sf(data = sf::st_simplify(.x),
-              aes(fill = Common_Name_EN), alpha = 0.8, linewidth = 0.8) +
-      scale_fill_manual(values = species_colours) +  # 👈 Custom fill colours
-      ggtitle(case_when(
-        .x$Common_Name_EN[1] == "Cultus Pygmy Sculpin" ~ "Coastrange Sculpin - Cultus",
-        .x$Common_Name_EN[1] == "Westslope Cutthroat Trout" ~ "Westslope Cutthroat Trout",
-        .x$Common_Name_EN[1] == "Bull Trout" ~ "Bull Trout - South Coast",
-        .x$Common_Name_EN[1] == "Rocky Mountain Ridged Mussel" ~ "Rocky Mountain Ridged Mussel",
-        .x$Common_Name_EN[1] == "Sockeye Salmon" ~ "Sockeye Salmon - Cultus",
-        TRUE ~ .x$Common_Name_EN[1]
-      )) +
-      ggthemes::theme_map() +
-      theme(legend.position = 'none',
-            plot.title = element_text(hjust = 0.5, size = 12, face = "bold"))
-  })
-
-all_my_maps = Reduce(`+`, species_maps)
-
-
-inset_map = ggplot() +
-  geom_sf(data = bcmaps::bc_bound(), fill = "white") +
-  geom_sf(data = dfo_extent, color = "red", fill = NA, linewidth = 1) +
-  ggthemes::theme_map()
-
-all_my_maps + inset_map
+cat('<div style="overflow-x: auto; white-space: nowrap; padding: 10px; border: 1px solid #ccc;">\n')
+for (path in paths) {
+  cat(sprintf('<img src="%s" style="width:300px; display: inline-block; margin-right: 10px;">\n', path))
+}
+cat('</div>')
 
 ```
 
@@ -145,17 +167,14 @@ ggplot()+
   geom_sf(data = frascol, fill = NA, color = "black", linewidth = 0.75) +
   ggthemes::theme_map()
 
-sf::sf_use_s2(TRUE)
+
 ```
 
 
 
-
--   Risk assessments ?? Alert sheets?
-
 ## Model Process
 
-### SAR-AIS overlap
+### SAR-AIS overlap {.tabset}
 
 Both SAR and AIS are spatially joined to named waterbodies (i.e. lakes,
 rivers and streams) to identify areas of overlap. In addition, each
@@ -165,9 +184,47 @@ waterbody was a river or stream and there was one or more lakes in
 physical proximity, the lake(s) was/were also included in the scope of
 this 'upstream waterbody' analysis.
 
--   Add occurrence dots for AIS? Maybe also polygon(s) for DFO SARA in
-    WB?
+#### AIS in Fraser and Columbia watersheds 
 
+```{r ais_inFrasColum}
+
+#get the overlap
+
+ais_in_frasColum <- ais_occs[sf::st_intersects(ais_occs, frascol, sparse = FALSE) |> rowSums() > 0, ]
+
+ggplot()+
+  geom_sf(data = st_as_sf(bc))+
+  geom_sf(data = named_wbs_fras_col, fill = "steelblue", alpha = 0.5)+
+  geom_sf(data = ais_in_frasColum, col = "darkred", alpha = 1) +
+  geom_sf(data = frascol, fill = NA, color = "black", linewidth = 0.75) +
+  ggthemes::theme_map()
+
+```
+
+
+
+    
+#### AIS/SAR Overlap
+
+The waterbodies with SAR and AIS overlapping are presented below. Hwoever, this does not include those that have AIS upstream. This is presented in a later plot.
+
+```{r ais_sar_overlap}
+
+filted_sar_ais<- filtered_wbs[sf::st_intersects(filtered_wbs, ais_occs, sparse = FALSE) |> rowSums() > 0, ]
+  
+ggplot()+
+  geom_sf(data = st_as_sf(bc))+
+  geom_sf(data = filted_sar_ais, fill = "steelblue", alpha = 0.5) +
+  geom_sf(data = frascol, fill = NA, color = "black", linewidth = 0.75) +
+  ggthemes::theme_map()
+
+sf::sf_use_s2(TRUE)
+```
+
+    
+#### Upstream example    
+
+When considering upstream connections, to visualise the connections, it may be necessary to look at un-named waterbodies to visualise these connections.
 ```{r upstream_example}
 eg_wb = named_wbs[named_wbs$waterbody == 'Alouette River',]
 row_name = "Alouette River"
@@ -227,11 +284,7 @@ to negatively affect SARA fish and SARA invertebrates through:
 
 -   disease/parasite transmission
 
-The uncertainty of the strength of these effects was also assessed.
-
-```         
-**Maybe mention that we took the average of those columns.**
-```
+These five categories are scored from low (1) to high (3) impact. For each species, the impact on a SAR is averaged across the above categories.
 
 For each waterbody with SAR / AIS overlap, or SAR present with AIS
 present in the nearby upstream, the most severe potential effect of AIS
