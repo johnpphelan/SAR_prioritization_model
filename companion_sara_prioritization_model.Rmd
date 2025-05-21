@@ -9,22 +9,8 @@ editor_options:
     wrap: 72
 ---
 
-```{r setup, echo = F, include=FALSE, results = 'asis', message = F, warning = F}
+```{r setup, echo = F, include=FALSE, message = F, warning = F}
 knitr::opts_chunk$set(echo = F, message = F, warning = F)
-
-cat('
-<style>
-.sar_sp {
-  display: flex;
-  overflow-x: auto;
-  gap: 20px;
-  padding: 10px;
-}
-.sar_sp > div {
-  flex: 0 0 auto;
-}
-</style>
-')
 
 library(readxl)
 library(tidyverse)
@@ -185,6 +171,8 @@ physical proximity, the lake(s) was/were also included in the scope of
 this 'upstream waterbody' analysis.
 
 #### AIS in Fraser and Columbia watersheds 
+
+This shows where the AIS are in the Fraser and Columbia watersheds.
 
 ```{r ais_inFrasColum}
 
