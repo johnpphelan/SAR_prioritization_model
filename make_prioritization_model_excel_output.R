@@ -151,6 +151,23 @@ for(i in 1:nrow(dfo_sar_w_ais)){
   upstream_named_wbs = upstream_named_wbs |>
     dplyr::filter(watershed == row_watershed)
 
+  # Also apply a 10km buffer filter around the waterbody in question.
+  this_wb_buffered = sf::st_buffer(
+    named_wbs_fras_col |>
+      dplyr::filter(
+        waterbody == dfo_sar_w_ais[i,]$waterbody,
+        watershed == dfo_sar_w_ais[i,]$watershed,
+        FWA_WATERSHED_CODE == dfo_sar_w_ais[i,]$FWA_WATERSHED_CODE
+      ) |>
+      sf::st_make_valid(),
+    dist = 10000)
+
+  upstream_named_wbs = upstream_named_wbs |>
+    dplyr::left_join(named_wbs_fras_col) |>
+    sf::st_set_geometry(value = "geometry") |>
+    sf::st_make_valid() |>
+    sf::st_filter(this_wb_buffered)
+
   # Record the number of named upstream waterbodies detected.
   dfo_sar_w_ais$number_upstream_waterbodies[i] = nrow(upstream_named_wbs)
   # if(nrow(upstream_named_wbs) > 0) print(paste0("row ",i, " has at least one upstream named waterbody."))
