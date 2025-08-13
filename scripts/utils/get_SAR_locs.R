@@ -1,9 +1,9 @@
 library(tidyverse)
 library(sf)
 library(bcmaps)
-# open the data/cnf folder 
+# open the data/cnf folder
 proj_wd = getwd()
-onedrive_wd = paste0(str_extract(getwd(),"C:/Users/[A-Z]+/"),"OneDrive - Government of BC/data/CNF/")
+onedrive_wd = "//SFP.IDIR.BCGOV/S140/S40203/WFC AEB/General/2 SCIENCE - Invasives/AIS_R_Projects/LargeDataFiles/CNF/"
 
 
 init_sara <-sf::st_read(paste0(onedrive_wd,"dfo_occurrences_in_BC_all_species.gpkg"))
@@ -20,7 +20,7 @@ ggplot()+
 sar_spp = c('Westslope Cutthroat Trout', 'Bull Trout', 'Cultus Pygmy Sculpin',
 'Sockeye Salmon','Rocky Mountain Ridged Mussel')
 
-sara_filtered<- sara_locs |> 
+sara_filtered<- sara_locs |>
   dplyr::filter(tolower(Common_Name_EN) %in% tolower(sar_spp))
 
 ggplot()+
@@ -31,22 +31,22 @@ ggplot()+
 rd<-regional_districts()
 rd$ADMIN_AREA_NAME
 
-frasColum<- rd %>% 
-  filter(str_detect(ADMIN_AREA_NAME, "\\Fraser") | 
+frasColum<- rd %>%
+  filter(str_detect(ADMIN_AREA_NAME, "\\Fraser") |
            str_detect(ADMIN_AREA_NAME, "\\Columbia"))
 nrR<-bcmaps::nr_regions()
-frasColum<- nrR %>% 
-  filter(str_detect(ORG_UNIT_NAME, "\\Fraser") | 
-           str_detect(ORG_UNIT_NAME, "\\Columbia")) |> 
+frasColum<- nrR %>%
+  filter(str_detect(ORG_UNIT_NAME, "\\Fraser") |
+           str_detect(ORG_UNIT_NAME, "\\Columbia")) |>
   st_transform(4326)
 
 bc<-bc_bound()
 southcoast = suppressMessages(bcmaps::nr_regions())
-frasColum<- southcoast %>% 
+frasColum<- southcoast %>%
   filter(REGION_NAME == "South Coast Natural Resource Region" |
            REGION_NAME == "Thompson-Okanagan Natural Resource Region" |
            REGION_NAME == "Kootenay-Boundary Natural Resource Region" |
-           REGION_NAME == "Cariboo Natural Resource Region" 
+           REGION_NAME == "Cariboo Natural Resource Region"
   )
 
 
@@ -63,4 +63,4 @@ ggplot() +
 
 st_write(sara_filtered_frasColum, "data/sara_filtered_frasColum.gpkg",
          delete_dsn = TRUE, quiet = TRUE)
-  
+
