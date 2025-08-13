@@ -6,6 +6,8 @@ maxent_output_folder = paste0(output_folder,"MaxEnt_predictions/")
 fras = sf::read_sf(paste0(onedrive_wd,"CNF/fraser_watershed_priority_area.gpkg"))
 col = sf::read_sf(paste0(onedrive_wd,"CNF/columbia_watershed_priority_area.gpkg"))
 frascol = dplyr::bind_rows(fras,col) |> dplyr::summarise() |> sf::st_transform(4326)
+
+
 # Read in SARA-listed species plus Sockeye Salmon (for all of BC)
 dfo_sar = sf::read_sf(paste0(onedrive_wd,"CNF/dfo_sara_and_crit_hab_bulltrout_and_sockeye_data.gpkg")) |> sf::st_transform(4326)
 # list of invasive species on our watch list.
@@ -48,4 +50,17 @@ if(!file.exists("data/named_lakes_and_rivers.rds")){
   saveRDS(named_wbs, "data/named_lakes_and_rivers.rds")
 } else {
   named_wbs = readRDS("data/named_lakes_and_rivers.rds")
+}
+
+if(!file.exists("data/named_wbs_fras_col.rds")){
+  named_wbs = readRDS("data/named_lakes_and_rivers.rds")
+  named_wbs_fras_col = sf::st_filter(named_wbs, frascol) |>
+    dplyr::select(waterbody, watershed, BLUE_LINE_KEY, FWA_WATERSHED_CODE, wb_type) |>
+    dplyr::mutate(wb_type = ifelse(wb_type == "lake", "lake", "river")) |>
+    dplyr::distinct()
+  
+  
+  saveRDS(named_wbs_fras_col, "data/named_wbs_fras_col.rds")
+} else {
+  named_wbs_fras_col = readRDS("data/named_wbs_fras_col.rds")
 }
