@@ -22,9 +22,9 @@ force_rerun = FALSE
 
 if(!force_rerun) print("Note: the current option selected for this run is to NOT force a re-run of MaxEnt model generation; these models will only be re-run if new occurrences exist or if 3 months has elapsed since the last model run.")
 
-lan_root = "//SFP.IDIR.BCGOV/S140/S40203/RSD_ FISH & AQUATIC HABITAT BRANCH/General/"
+lan_root = "//SFP.IDIR.BCGOV/S140/S40203/WFC AEB/General/"
 proj_wd = getwd()
-onedrive_wd = paste0(str_extract(getwd(),"C:/Users/[A-Z]+/"),"OneDrive - Government of BC/data/")
+onedrive_wd = "//SFP.IDIR.BCGOV/S140/S40203/WFC AEB/General/2 SCIENCE - Invasives/AIS_R_Projects/LargeDataFiles/"
 
 bc = bcmaps::bc_bound() |> dplyr::summarise() |> sf::st_transform(4326) |> terra::vect()
 
@@ -55,17 +55,17 @@ output_folder = paste0(lan_root,"2 SCIENCE - Invasives/GENERAL/Budget/Canada Nat
 # Save plots of the predictor variables.
 names(predictor_data)[names(predictor_data) != 'asian_clam_temperature_limits'] |>
   purrr::iwalk(~ {
-    
+
     var_name = stringr::str_remove_all(.x, "(_)?\\(.*\\)")
-    
+
     if(!file.exists(paste0(output_folder,"predictor_variable_plots/",var_name,".jpg"))){
-      
-      the_plot = ggplot2::ggplot() + 
-        tidyterra::geom_spatraster(data = predictor_data[[.x]]) + 
-        ggplot2::labs(fill = var_name) + 
+
+      the_plot = ggplot2::ggplot() +
+        tidyterra::geom_spatraster(data = predictor_data[[.x]]) +
+        ggplot2::labs(fill = var_name) +
         ggplot2::scale_fill_viridis_c(option = "D", na.value = NA)+
         ggplot2::theme_minimal()
-      
+
       ggplot2::ggsave(filename = paste0(output_folder,"predictor_variable_plots/",var_name,".jpg"),
                       plot = the_plot,
                       dpi = 300, width = 8, height = 8)
@@ -77,27 +77,27 @@ names(predictor_data)[names(predictor_data) != 'asian_clam_temperature_limits'] 
 pr_sp = gather_ais_data(data = 'species list', lan_root = lan_root, onedrive_wd = onedrive_wd)
 
 # Just gather occurrence records for species currently in the excel sheet of inputs for AIS model runs.
-pr_sp_for_run = pr_sp |> dplyr::filter(name %in% species_for_run$Species) 
+pr_sp_for_run = pr_sp |> dplyr::filter(name %in% species_for_run$Species)
 
-# occ_dat_res_b = gather_ais_data(data = 'occurrences', redo = T, lan_root = lan_root, 
+# occ_dat_res_b = gather_ais_data(data = 'occurrences', redo = T, lan_root = lan_root,
 #                                 onedrive_wd = onedrive_wd, species_list = pr_sp_for_run,
 #                                 excel_path = "data/Master Incidence Report Records.xlsx")
 occ_dat_res_b = sf::read_sf(paste0(lan_root,"2 SCIENCE - Invasives/SPECIES/5_Incidental Observations/AIS_occurrences_all_sources.gpkg"))
 
 # # Drop species that are in the 'Prevent' category; maybe just keep this as optional?
-# occ_dat_res_f = occ_dat_res_b |> 
+# occ_dat_res_f = occ_dat_res_b |>
 #   dplyr::filter(Species %in% pr_sp[pr_sp$status != "Prevent",]$name)
 
 unique_sp = unique(occ_dat_res_b$Species)
 
 for(i in 1:length(unique_sp)){
-  
+
   print(i)
-  
+
   the_sp = unique_sp[i]
   the_sp_snake = snakecase::to_snake_case(the_sp)
   the_sp_occ = occ_dat_res_b |> dplyr::filter(Species == the_sp)
-  
+
   if(nrow(the_sp_occ) == 0){
     print("No occurrence records for this species in BC, according to our sources. Skipping MaxEnt run...")
   } else {
@@ -109,32 +109,32 @@ for(i in 1:length(unique_sp)){
       # Look to see if this species needs maxent rerun - either because it has new occurrences
       # or because its last run was more than 2 months prior.
       maxent_metadata = read.csv(file = paste0(lan_root,"2 SCIENCE - Invasives/GENERAL/Budget/Canada Nature fund 2023-2026/Work Planning and modelling/MaxEnt_predictions/",the_sp_snake,"/MaxEnt_model_run_metadata.csv"))
-      
+
       # Two tests of whether we should rerun maxent or not:
       # 1. Have 3 months elapsed since we last ran this species?
       past_expiration_date = lubridate::ymd(Sys.Date()) > lubridate::ymd(maxent_metadata$run_date) + lubridate::days(90)
       # 2. Have any additional occurrences been added within BC?
       new_occurrences = nrow(the_sp_occ) > maxent_metadata$number_occurrences
     }
-    
+
     #if(past_expiration_date | new_occurrences | force_rerun){
-      
+
       print(paste0("Rerunning maxent for ",the_sp))
-      
-      vars_for_this_species = predictor_var_matrix |> 
-        dplyr::filter(name == the_sp) |> 
-        dplyr::rename(species = name) |> 
-        tidyr::pivot_longer(-species) |> 
-        dplyr::filter(value) |> 
-        dplyr::select(name) |> 
-        dplyr::distinct() |> 
+
+      vars_for_this_species = predictor_var_matrix |>
+        dplyr::filter(name == the_sp) |>
+        dplyr::rename(species = name) |>
+        tidyr::pivot_longer(-species) |>
+        dplyr::filter(value) |>
+        dplyr::select(name) |>
+        dplyr::distinct() |>
         dplyr::pull(name)
-      
-      
+
+
       # Run maxent for this species
       tryCatch(
         expr = run_maxent(
-          species = the_sp_occ, 
+          species = the_sp_occ,
           predictor_data = predictor_data[[vars_for_this_species]],
           onedrive_path = onedrive_wd,
           number_pseudoabsences = 10000,
