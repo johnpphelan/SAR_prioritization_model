@@ -33,9 +33,9 @@ library(leaflet.providers)
 ```
 
 ```{r grab_Data_and_geoms}
-
-source(here("scripts","utils","load_data.R"))
-source(here("scripts","utils","prep_predictor_data_f.R"))
+setwd(here::here())
+source(here::here("scripts","utils","load_data.R"))
+source(here::here("scripts","utils","prep_predictor_data_f.R"))
        
 
 
@@ -138,7 +138,6 @@ dfo_sar_w_ais$sum_of_maxent_hab_not_hab = 0
 
 
 for(i in 1:nrow(dfo_sar_w_ais)){
-  print(i)
   row_name = dfo_sar_w_ais$waterbody[i]
   row_fwa = dfo_sar_w_ais$FWA_WATERSHED_CODE[i]
   row_fwa_prefix = str_remove(row_fwa, "000000.*")
@@ -196,7 +195,7 @@ for(i in 1:nrow(dfo_sar_w_ais)){
         dplyr::filter(str_detect(waterbody,"Lake")) |>
         sf::st_drop_geometry()
       if(nrow(additional_upstream_wbs) > 0){
-        print("An additional upstream lake that was touching the network of upstream waterbodies was added to the dataframe of upstream waterbodies!")
+        # print("An additional upstream lake that was touching the network of upstream waterbodies was added to the dataframe of upstream waterbodies!")
         upstream_named_wbs = dplyr::bind_rows(
           upstream_named_wbs
         )
@@ -310,7 +309,6 @@ for(i in 1:nrow(dfo_sar_w_ais)){
       ones_count <- sum(values(the_pred_wb_masked) == 1, na.rm = TRUE)
       percentage <- (ones_count / total_pixels) * 100
 
-      print(i)
       # the_pred_wb_masked <- as.factor(the_pred_wb_masked)
       # levels(the_pred_wb_masked) <- list(data.frame(ID = c(0, 1), fc.LQ_rm.1 = c("FALSE", "TRUE")))
       # ggplot() +
@@ -679,7 +677,7 @@ leaflet() %>%
   addProviderTiles("CartoDB.Positron") |> 
   addPolygons(
     data        = bc,
-    fillColor   = "lightgray",
+    fillColor   = "transparent",
     color       = "black",
     weight      = 1,
     fillOpacity = 0.5
@@ -719,7 +717,7 @@ leaflet() %>%
   addProviderTiles("CartoDB.Positron") |> 
   addPolygons(
     data        = bc,
-    fillColor   = "lightgray",
+    fillColor   = "transparent",
     color       = "black",
     weight      = 1,
     fillOpacity = 0.5
@@ -758,13 +756,13 @@ test <- dfo_output_final |>
 
 leaflet() %>%
   addProviderTiles("CartoDB.Positron") |> 
-  # addPolygons(
-  #   data        = bc,
-  #   fillColor   = "lightgray",
-  #   color       = "black",
-  #   weight      = 1,
-  #   fillOpacity = 0.5
-  # ) %>%
+  addPolygons(
+    data        = bc,
+    fillColor   = "transparent",
+    color       = "black",
+    weight      = 1,
+    fillOpacity = 0.5
+  ) %>%
   addPolygons(
     data        = test,
     fillColor   = ~pal(final_risk_b),   # use pal() instead of case_when
@@ -800,7 +798,7 @@ leaflet() %>%
   addProviderTiles("CartoDB.Positron") |> 
   addPolygons(
     data        = bc,
-    fillColor   = "lightgray",
+    fillColor   = "transparent",
     color       = "black",
     weight      = 1,
     fillOpacity = 0.5
@@ -840,7 +838,7 @@ leaflet() %>%
   addProviderTiles("CartoDB.Positron") |> 
   addPolygons(
     data        = bc,
-    fillColor   = "lightgray",
+    fillColor   = "transparent",
     color       = "black",
     weight      = 1,
     fillOpacity = 0.5
@@ -882,7 +880,7 @@ leaflet() %>%
   addProviderTiles("CartoDB.Positron") |> 
   addPolygons(
     data        = bc,
-    fillColor   = "lightgray",
+    fillColor   = "transparent",
     color       = "black",
     weight      = 1,
     fillOpacity = 0.5
